@@ -1,0 +1,13 @@
+.name
+
+/*.xml
+/**/*.xml
+
+/httpRequests/
+/dataSources/
+/shelf/
+/modules/
+/jpb/
+
+!/encodings.xml
+!/inspectionProfiles/**
