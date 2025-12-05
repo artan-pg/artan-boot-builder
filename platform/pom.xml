@@ -9,4 +9,8 @@
 
 	<artifactId>platform</artifactId>
 	<packaging>pom</packaging>
+
+	<modules>
+		<module>artan-boot-dependencies</module>
+	</modules>
 </project>
