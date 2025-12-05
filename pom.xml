@@ -41,4 +41,8 @@
 	<build>
 		<defaultGoal>clean compile package</defaultGoal>
 	</build>
+
+	<modules>
+		<module>platform</module>
+	</modules>
 </project>
