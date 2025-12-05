@@ -48,6 +48,9 @@
 
 		<!-- Libraries versions properties -->
 		<revision>0.0.0-SNAPSHOT</revision>
+
+		<wiremock.version>3.13.2</wiremock.version>
+		<wiremock-grpc.version>0.11.0</wiremock-grpc.version>
 		<spring-boot.version>4.0.0</spring-boot.version>
 		<spring-cloud.version>2025.1.0</spring-cloud.version>
 
@@ -101,6 +104,52 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock</artifactId>
+				<version>${wiremock.version}</version>
+				<scope>test</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock-standalone</artifactId>
+				<version>${wiremock.version}</version>
+				<scope>test</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock-jetty12</artifactId>
+				<version>${wiremock.version}</version>
+				<scope>test</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock-grpc-extension</artifactId>
+				<version>${wiremock-grpc.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.wiremock</groupId>
+						<artifactId>wiremock</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock-grpc-extension-standalone</artifactId>
+				<version>${wiremock-grpc.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.wiremock</groupId>
+				<artifactId>wiremock-grpc-extension-jetty12</artifactId>
+				<version>${wiremock-grpc.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.wiremock</groupId>
+						<artifactId>wiremock-jetty12</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+
 			<dependency>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-dependencies</artifactId>
