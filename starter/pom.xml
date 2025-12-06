@@ -13,4 +13,8 @@
 
 	<name>starter</name>
 	<description>Artan Starters</description>
+
+	<modules>
+		<module>artan-boot-starter-parent</module>
+	</modules>
 </project>
