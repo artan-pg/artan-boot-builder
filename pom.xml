@@ -44,5 +44,6 @@
 
 	<modules>
 		<module>platform</module>
+		<module>starter</module>
 	</modules>
 </project>
