@@ -43,6 +43,7 @@
 	</build>
 
 	<modules>
+		<module>core</module>
 		<module>platform</module>
 		<module>starter</module>
 	</modules>
