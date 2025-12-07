@@ -275,6 +275,14 @@
 		</dependencies>
 	</dependencyManagement>
 
+	<repositories>
+		<!-- Confluent Repository -->
+		<repository>
+			<id>confluent</id>
+			<url>https://packages.confluent.io/maven/</url>
+		</repository>
+	</repositories>
+
 	<build>
 		<pluginManagement>
 			<plugins>
@@ -526,7 +534,7 @@
 								<dependencyManagement>keep</dependencyManagement>
 								<pluginManagement>keep</pluginManagement>
 								<properties>keep</properties>
-								<repositories>remove</repositories>
+								<repositories>keep</repositories>
 							</pomElements>
 						</configuration>
 					</execution>
