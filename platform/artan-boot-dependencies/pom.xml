@@ -49,10 +49,18 @@
 		<!-- Libraries versions properties -->
 		<revision>0.0.0-SNAPSHOT</revision>
 
+		<avro.version>1.12.1</avro.version>
+		<kryo.version>5.6.2</kryo.version>
+
 		<wiremock.version>3.13.2</wiremock.version>
 		<wiremock-grpc.version>0.11.0</wiremock-grpc.version>
+
 		<spring-boot.version>4.0.0</spring-boot.version>
 		<spring-cloud.version>2025.1.0</spring-cloud.version>
+		<protobuf.version>4.32.0</protobuf.version>
+		<gRPC.version>1.75.0</gRPC.version>
+		<okhttp.version>5.3.2</okhttp.version>
+		<rest-assured.version>5.5.6</rest-assured.version>
 
 		<!-- Maven plugins versions properties -->
 		<maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
@@ -104,6 +112,81 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro</artifactId>
+				<version>${avro.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-protobuf</artifactId>
+				<version>${avro.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.apache.avro</groupId>
+						<artifactId>avro</artifactId>
+					</exclusion>
+					<exclusion>
+						<groupId>com.google.protobuf</groupId>
+						<artifactId>protobuf-java</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-ipc-netty</artifactId>
+				<version>${avro.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.apache.avro</groupId>
+						<artifactId>avro</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-ipc-jetty</artifactId>
+				<version>${avro.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.apache.avro</groupId>
+						<artifactId>avro</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-perf</artifactId>
+				<version>${avro.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.apache.avro</groupId>
+						<artifactId>avro</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-grpc</artifactId>
+				<version>${avro.version}</version>
+				<exclusions>
+					<exclusion>
+						<groupId>org.apache.avro</groupId>
+						<artifactId>avro</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-tools</artifactId>
+				<version>${avro.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.esotericsoftware</groupId>
+				<artifactId>kryo</artifactId>
+				<version>${kryo.version}</version>
+			</dependency>
+
 			<dependency>
 				<groupId>org.wiremock</groupId>
 				<artifactId>wiremock</artifactId>
@@ -158,6 +241,34 @@
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.google.protobuf</groupId>
+				<artifactId>protobuf-bom</artifactId>
+				<version>${protobuf.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>io.grpc</groupId>
+				<artifactId>grpc-bom</artifactId>
+				<version>${gRPC.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.squareup.okhttp3</groupId>
+				<artifactId>okhttp-bom</artifactId>
+				<version>${okhttp.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>io.rest-assured</groupId>
+				<artifactId>rest-assured-bom</artifactId>
+				<version>${rest-assured.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
