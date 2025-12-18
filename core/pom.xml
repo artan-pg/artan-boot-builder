@@ -16,5 +16,6 @@
 
 	<modules>
 		<module>artan-boot</module>
+		<module>artan-boot-autoconfiguration</module>
 	</modules>
 </project>
