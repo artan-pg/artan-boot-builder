@@ -13,4 +13,8 @@
 
 	<name>core</name>
 	<description>Artan Core Modules</description>
+
+	<modules>
+		<module>artan-boot</module>
+	</modules>
 </project>

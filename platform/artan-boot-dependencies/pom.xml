@@ -113,6 +113,12 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
+				<groupId>ir.artanpg.boot</groupId>
+				<artifactId>artan-boot</artifactId>
+				<version>${revision}</version>
+			</dependency>
+
+			<dependency>
 				<groupId>org.apache.avro</groupId>
 				<artifactId>avro</artifactId>
 				<version>${avro.version}</version>
