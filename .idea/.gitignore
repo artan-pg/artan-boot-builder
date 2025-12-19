@@ -5,9 +5,10 @@
 
 /httpRequests/
 /dataSources/
-/shelf/
 /modules/
 /jpb/
 
 !/encodings.xml
 !/inspectionProfiles/**
+!/shelf/*.xml
+!/shelf/*.patch

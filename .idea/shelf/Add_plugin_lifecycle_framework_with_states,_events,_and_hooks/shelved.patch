@@ -1,0 +1,259 @@
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginState.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginState.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginState.java
+new file mode 100644
+--- /dev/null	(date 1766144084515)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginState.java	(date 1766144084515)
+@@ -0,0 +1,30 @@
++package ir.artanpg.boot.kernel;
++
++public enum PluginState {
++
++	DISCOVERED(0),
++	VERIFYED(1),
++	INSTALLIG(2),
++	ACTIVE(3),
++	UNINSTALLING(4),
++	DIACTIVE(5),
++	FAILED(6),
++	;
++
++	private final int code;
++
++	PluginState(int code) {
++		this.code = code;
++	}
++
++	public int getCode() {
++		return code;
++	}
++
++	public static PluginState valueOf(int code) {
++		for (PluginState state : values()) {
++			if (state.code == code) return state;
++		}
++		return null;
++	}
++}
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/event/PluginLifecycleEvent.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/event/PluginLifecycleEvent.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/event/PluginLifecycleEvent.java
+new file mode 100644
+--- /dev/null	(date 1766144550488)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/event/PluginLifecycleEvent.java	(date 1766144550488)
+@@ -0,0 +1,29 @@
++package ir.artanpg.boot.kernel.event;
++
++import ir.artanpg.boot.kernel.PluginState;
++
++import java.io.Serial;
++import java.util.EventObject;
++
++public class PluginLifecycleEvent extends EventObject {
++
++	@Serial
++	private static final long serialVersionUID = 8676798450224084463L;
++
++	private final String pluginId;
++	private final PluginState pluginState;
++
++	public PluginLifecycleEvent(Object source, String pluginId, PluginState pluginState) {
++		super(source);
++		this.pluginId = pluginId;
++		this.pluginState = pluginState;
++	}
++
++	public String getPluginId() {
++		return pluginId;
++	}
++
++	public PluginState getPluginState() {
++		return pluginState;
++	}
++}
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/hooks/PluginHooks.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/hooks/PluginHooks.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/hooks/PluginHooks.java
+new file mode 100644
+--- /dev/null	(date 1766144655960)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/hooks/PluginHooks.java	(date 1766144655960)
+@@ -0,0 +1,18 @@
++package ir.artanpg.boot.kernel.hooks;
++
++public interface PluginHooks {
++
++	default void onDiscovered() {}
++
++	default void onVerified() {}
++
++	default void onInstalling() {}
++
++	default void onActive() {}
++
++	default void onUninstalling() {}
++
++	default void onDeActive() {}
++
++	default void onFailed(Exception e) {}
++}
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/DefaultPluginContext.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/DefaultPluginContext.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/DefaultPluginContext.java
+new file mode 100644
+--- /dev/null	(date 1766161819245)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/DefaultPluginContext.java	(date 1766161819245)
+@@ -0,0 +1,61 @@
++package ir.artanpg.boot.kernel;
++
++import ir.artanpg.boot.kernel.hooks.PluginHooks;
++
++import java.nio.file.Path;
++import java.util.concurrent.atomic.AtomicReference;
++
++public class DefaultPluginContext implements PluginLifecycle {
++
++	private final String id;
++	private final PluginHooks pluginHooks; // منطق اختصاصی پلاگین
++
++	private final String pluginId;
++	private final PluginDescriptor descriptor;
++	private final PluginClassLoader classLoader;
++	private final Path pluginPath;
++	private final EventPublisher eventPublisher;
++	private final DependencyResolver dependencyResolver;
++
++	private final AtomicReference<PluginState> currentState = new AtomicReference<>(PluginState.DISCOVERED);
++
++	// رفرنس به نمونه اصلی پلاگین
++	private Object pluginInstance;
++
++	public DefaultPluginContext(String id, PluginHooks pluginHooks) {
++		this.id = id;
++		this.pluginHooks = pluginHooks;
++	}
++
++	public String getId() {
++		return id;
++	}
++
++	public PluginHooks getPluginHooks() {
++		return pluginHooks;
++	}
++
++	public PluginState getCurrentState() {
++		return currentState.get();
++	}
++
++	@Override
++	public void initialize(DefaultPluginContext context) {
++
++	}
++
++	@Override
++	public void start() {
++
++	}
++
++	@Override
++	public void stop() {
++
++	}
++
++	@Override
++	public void destroy() {
++
++	}
++}
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/Lifecycle.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/Lifecycle.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/Lifecycle.java
+new file mode 100644
+--- /dev/null	(date 1766161608486)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/Lifecycle.java	(date 1766161608486)
+@@ -0,0 +1,52 @@
++package ir.artanpg.boot.kernel;
++
++public interface Lifecycle {
++
++	/**
++	 * مرحله 1: بارگذاری پلاگین
++	 * این متد کلاس‌های پلاگین را لود می‌کند
++	 */
++	void load() throws PluginException;
++
++	/**
++	 * مرحله 2: اعتبارسنجی پلاگین
++	 * بررسی وابستگی‌ها، امضاها و مجوزها
++	 */
++	void validate() throws PluginException;
++
++	/**
++	 * مرحله 3: مقداردهی اولیه پلاگین
++	 * ایجاد نمونه‌ها و آماده‌سازی اولیه
++	 */
++	void initialize() throws PluginException;
++
++	/**
++	 * مرحله 4: شروع پلاگین
++	 * پلاگین شروع به کار می‌کند
++	 */
++	void start() throws PluginException;
++
++	/**
++	 * مرحله 5: توقف پلاگین
++	 * پلاگین متوقف می‌شود
++	 */
++	void stop() throws PluginException;
++
++	/**
++	 * مرحله 6: تخلیه پلاگین
++	 * آزادسازی منابع و تخلیه از حافظه
++	 */
++	void unload() throws PluginException;
++
++	/**
++	 * بازگرداندن وضعیت فعلی پلاگین
++	 */
++	PluginState getState();
++
++	/**
++	 * بررسی آیا پلاگین فعال است
++	 */
++	default boolean isActive() {
++		return getState() == PluginState.ACTIVE;
++	}
++}
+Index: core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginException.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginException.java b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginException.java
+new file mode 100644
+--- /dev/null	(date 1766161590747)
++++ b/core/artan-boot/src/main/java/ir/artanpg/boot/kernel/PluginException.java	(date 1766161590747)
+@@ -0,0 +1,9 @@
++package ir.artanpg.boot.kernel;
++
++import java.io.Serial;
++
++public class PluginException extends RuntimeException {
++	@Serial
++	private static final long serialVersionUID = 7249757400175278234L;
++
++}
