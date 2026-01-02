@@ -4,93 +4,60 @@ import io.micrometer.common.util.StringUtils;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
-import ir.artanpg.boot.kernel.eventbus.exception.LoggingAndMetricsExceptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AbstractEventBus implements EventBus {
 
 	private final Logger logger = LoggerFactory.getLogger(getClass());
 
-	private final SubscriberRegistry subscriberRegistry;
-	private final ExecutorService executorService;
 	private final MeterRegistry meterRegistry;
+	private final SubscriberRegistry subscriberRegistry;
 
-	private final SubscriberExceptionHandler exceptionHandler;
+	private ExecutorService executorService;
 
-	protected AbstractEventBus() {
-		this(null);
-	}
+	protected AbstractEventBus(MeterRegistry meterRegistry, SubscriberRegistry subscriberRegistry) {
+		if (meterRegistry == null) throw new IllegalArgumentException("the meterRegistry cannot be null");
+		if (subscriberRegistry == null) throw new IllegalArgumentException("the subscriberRegistry cannot be null");
 
-	protected AbstractEventBus(MeterRegistry meterRegistry) {
-		this(
-				meterRegistry,
-				DefaultSubscriberRegistry.DEFAUT_INSTANCE,
-				meterRegistry == null ?
-						SubscriberExceptionHandler.DEFAUT_INSTANCE :
-						new LoggingAndMetricsExceptionHandler(meterRegistry));
+		this.meterRegistry = meterRegistry;
+		this.subscriberRegistry = subscriberRegistry;
+
+		ExecutorService fixedThreadPool =
+				Executors.newSingleThreadExecutor(threadFactory -> {
+							Thread thread = new Thread(threadFactory, "EventBus-Serial-Thread");
+							thread.setDaemon(true);
+							return thread;
+						}
+				);
+
+		this.executorService = ExecutorServiceMetrics.monitor(meterRegistry, fixedThreadPool, "eventbus.executor");
 	}
 
 	protected AbstractEventBus(MeterRegistry meterRegistry,
-							   SubscriberRegistry subscriberRegistry,
-							   SubscriberExceptionHandler exceptionHandler) {
+							   ExecutorService executorService,
+							   SubscriberRegistry subscriberRegistry) {
+		if (meterRegistry == null) throw new IllegalArgumentException("the meterRegistry cannot be null");
+		if (executorService == null) throw new IllegalArgumentException("the executorService cannot be null");
+		if (subscriberRegistry == null) throw new IllegalArgumentException("the subscriberRegistry cannot be null");
+
 		this.meterRegistry = meterRegistry;
-		this.subscriberRegistry = subscriberRegistry != null ? subscriberRegistry : SubscriberRegistry.DEFAUT_INSTANCE;
-		this.exceptionHandler = exceptionHandler != null ? exceptionHandler : SubscriberExceptionHandler.DEFAUT_INSTANCE;
-
-		ExecutorService fixedThreadPool = new ThreadPoolExecutor(
-				1,
-				1,
-				0L,
-				TimeUnit.MILLISECONDS,
-				new LinkedBlockingQueue<>(),
-				threadFactory -> {
-					Thread thread = new Thread(threadFactory, "EventBus-SerialWorker");
-					thread.setDaemon(true);
-					thread.setUncaughtExceptionHandler((thread1, throwable) -> {
-						var handler =
-								exceptionHandler != null ? exceptionHandler : SubscriberExceptionHandler.DEFAUT_INSTANCE;
-						handler.handleRejectedExecution(thread1, throwable);
-					});
-					return thread;
-				},
-				(runnable, _) -> {
-					var handler =
-							exceptionHandler != null ? exceptionHandler : SubscriberExceptionHandler.DEFAUT_INSTANCE;
-					Throwable rejectedEx = new RejectedExecutionException("Publish rejected - EventBus is shutting down");
-					handler.handleRejectedExecution(runnable, rejectedEx);
-
-					if (meterRegistry != null) {
-						meterRegistry.counter("eventbus.publish.rejected", "reason", "shutdown").increment();
-					}
-				}
-		);
-
-		if (meterRegistry != null) {
-			this.executorService =
-					ExecutorServiceMetrics
-							.monitor(meterRegistry, fixedThreadPool, "eventbus.executor", Tags.of("type", "serial"));
-		} else {
-			this.executorService = fixedThreadPool;
-		}
+		this.executorService = ExecutorServiceMetrics.monitor(meterRegistry, executorService, "eventbus.executor");
+		this.subscriberRegistry = subscriberRegistry;
 	}
 
 	protected void incrementPublishCounter(String topic, String... additionalTags) {
-		if (meterRegistry == null) return;
-
-		var effectiveTopic = topic != null ? topic : DEFUALT_TOPIC_NAME;
-
 		try {
-			var tags = buildTags(effectiveTopic, additionalTags);
+			Tags tags = buildTags(topic, additionalTags);
 			meterRegistry.counter("eventbus.publish.total", tags).increment();
 		} catch (Exception e) {
-			logger.warn("Failed to increment publish counter for topic: {}", topic, e);
+			if (logger.isWarnEnabled()) {
+				logger.warn("Failed to increment publish counter for topic: {}", topic, e);
+			}
 		}
 	}
 
@@ -129,26 +96,6 @@ public abstract class AbstractEventBus implements EventBus {
 	}
 
 	@Override
-	public SubscriberExceptionHandler getExceptionHandler() {
-		return exceptionHandler;
-	}
-
-	@Override
-	public SubscriberRegistry getSubscriberRegistry() {
-		return subscriberRegistry;
-	}
-
-	@Override
-	public ExecutorService getExecutorService() {
-		return executorService;
-	}
-
-	@Override
-	public MeterRegistry getMeterRegistry() {
-		return meterRegistry;
-	}
-
-	@Override
 	public void shutdown() {
 		executorService.shutdown();
 		try {
@@ -159,5 +106,21 @@ public abstract class AbstractEventBus implements EventBus {
 			executorService.shutdownNow();
 			Thread.currentThread().interrupt();
 		}
+	}
+
+	protected Logger getLogger() {
+		return logger;
+	}
+
+	protected MeterRegistry getMeterRegistry() {
+		return meterRegistry;
+	}
+
+	protected SubscriberRegistry getSubscriberRegistry() {
+		return subscriberRegistry;
+	}
+
+	protected ExecutorService getExecutorService() {
+		return executorService;
 	}
 }

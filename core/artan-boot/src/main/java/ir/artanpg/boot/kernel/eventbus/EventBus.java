@@ -1,37 +1,17 @@
 package ir.artanpg.boot.kernel.eventbus;
 
-import io.micrometer.core.instrument.MeterRegistry;
-
-import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
+import ir.artanpg.boot.kernel.eventbus.model.Event;
+import ir.artanpg.boot.kernel.eventbus.model.EventListener;
 
 public interface EventBus {
 
-	String DEFUALT_TOPIC_NAME = "default";
+	void publish(Event event);
 
-	<T> void publish(T event);
+	void publish(String topic, Event event);
 
-	<T> void publish(String topic, T event);
+	void registerSubscribe(String topic, EventListener eventListener);
 
-	<T> Subscription register(Class<T> eventType, Consumer<T> listener);
-
-	<T> Subscription register(String topic, Class<T> eventType, Consumer<T> listener);
-
-	<T> Subscription register(Class<T> eventType, Subscription.Priority priority, Consumer<T> listener);
-
-	<T> Subscription register(String topic, Class<T> eventType, Subscription.Priority priority, Consumer<T> listener);
-
-	<T> Subscription registerPattern(String pattern, Class<T> eventType, Consumer<T> listener);
-
-	<T> Subscription registerPattern(String pattern, Class<T> eventType, Subscription.Priority priority, Consumer<T> listener);
-
-	SubscriberExceptionHandler getExceptionHandler();
-
-	SubscriberRegistry getSubscriberRegistry();
-
-	ExecutorService getExecutorService();
-
-	MeterRegistry getMeterRegistry();
+	void removeSubscribe(String topic, EventListener eventListener);
 
 	void shutdown();
 }
