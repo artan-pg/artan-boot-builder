@@ -347,4 +347,8 @@
       <url>https://repo.artanpg.ir/repository/maven-snapshots/</url>
     </snapshotRepository>
   </distributionManagement>
+
+  <modules>
+    <module>platform</module>
+  </modules>
 </project>
