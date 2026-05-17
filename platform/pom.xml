@@ -12,5 +12,6 @@
 
   <modules>
     <module>artan-boot-dependencies</module>
+    <module>artan-boot-parent</module>
   </modules>
 </project>
