@@ -155,6 +155,47 @@
         </plugin>
       </plugins>
     </pluginManagement>
+
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <id>flatten</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>flatten</goal>
+            </goals>
+            <configuration>
+              <updatePomFile>true</updatePomFile>
+              <flattenMode>bom</flattenMode>
+              <pomElements>
+                <parent>keep</parent>
+                <properties>keep</properties>
+                <dependencyManagement>keep</dependencyManagement>
+                <pluginManagement>keep</pluginManagement>
+                <build>keep</build>
+                <profiles>keep</profiles>
+
+                <distributionManagement>remove</distributionManagement>
+                <repositories>remove</repositories>
+                <pluginRepositories>remove</pluginRepositories>
+                <modules>remove</modules>
+              </pomElements>
+            </configuration>
+          </execution>
+          <execution>
+            <id>flatten-clean</id>
+            <phase>clean</phase>
+            <goals>
+              <goal>clean</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 
   <profiles>
