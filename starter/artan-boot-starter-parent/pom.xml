@@ -22,6 +22,7 @@
 
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
+    <maven.compiler.failOnWarning>false</maven.compiler.failOnWarning>
   </properties>
 
   <build>
@@ -59,13 +60,24 @@
             <target>${java.version}</target>
             <release>${java.version}</release>
             <parameters>true</parameters>
+            <showWarnings>true</showWarnings>
             <enablePreview>true</enablePreview>
+            <encoding>${project.build.sourceEncoding}</encoding>
+            <failOnWarning>${maven.compiler.failOnWarning}</failOnWarning>
+            <compilerArgs>
+              <arg>-Xlint:cast</arg>
+              <arg>-Xlint:serial</arg>
+              <arg>-Xlint:removal</arg>
+              <arg>-Xlint:unchecked</arg>
+              <arg>-Xlint:deprecation</arg>
+            </compilerArgs>
           </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
           <configuration>
+            <propertiesEncoding>${project.build.sourceEncoding}</propertiesEncoding>
             <delimiters>
               <delimiter>${resource.delimiter}</delimiter>
             </delimiters>
@@ -128,28 +140,21 @@
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
           <version>${spring-boot.version}</version>
+          <executions>
+            <execution>
+              <id>repackage</id>
+              <goals>
+                <goal>repackage</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <!--suppress UnresolvedMavenProperty -->
+            <mainClass>${start-class}</mainClass>
+          </configuration>
         </plugin>
       </plugins>
     </pluginManagement>
-
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-resources-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-      </plugin>
-    </plugins>
   </build>
 
   <profiles>
