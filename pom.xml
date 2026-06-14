@@ -349,7 +349,7 @@
   </distributionManagement>
 
   <modules>
-    <module>platform</module>
-    <module>starter</module>
+    <module>artan-boot-platforms</module>
+    <module>artan-boot-starters</module>
   </modules>
 </project>

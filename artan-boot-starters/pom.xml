@@ -3,15 +3,18 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ir.artanpg.boot</groupId>
-    <artifactId>artan-boot-builder</artifactId>
+    <artifactId>artan-boot-parent</artifactId>
     <version>0.0.0-SNAPSHOT</version>
+    <relativePath>../artan-boot-platforms/artan-boot-parent</relativePath>
   </parent>
 
-  <artifactId>platform</artifactId>
+  <artifactId>artan-boot-starters</artifactId>
   <packaging>pom</packaging>
 
+  <name>artan-boot-starters</name>
+  <description>Artan Starters Module</description>
+
   <modules>
-    <module>artan-boot-dependencies</module>
-    <module>artan-boot-parent</module>
+    <module>artan-boot-starter-parent</module>
   </modules>
 </project>
