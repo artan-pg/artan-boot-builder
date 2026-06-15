@@ -4,7 +4,7 @@
   <parent>
     <groupId>ir.artanpg.boot</groupId>
     <artifactId>artan-boot-builder</artifactId>
-    <version>0.0.0-SNAPSHOT</version>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>artan-boot-platforms</artifactId>
@@ -12,6 +12,10 @@
 
   <name>artan-boot-platforms</name>
   <description>Artan Platforms Module</description>
+
+  <properties>
+    <main.basedir>${basedir}/..</main.basedir>
+  </properties>
 
   <modules>
     <module>artan-boot-dependencies</module>

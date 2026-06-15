@@ -4,7 +4,7 @@
 
   <groupId>ir.artanpg.boot</groupId>
   <artifactId>artan-boot-builder</artifactId>
-  <version>0.0.0-SNAPSHOT</version>
+  <version>${revision}</version>
   <packaging>pom</packaging>
 
   <name>artan-boot-builder</name>
@@ -45,6 +45,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.resources.sourceEncoding>UTF-8</project.resources.sourceEncoding>
+
+    <revision>0.1.0-SNAPSHOT</revision>
+    <main.basedir>${basedir}</main.basedir>
 
     <maven.test.skip>true</maven.test.skip>
 
