@@ -78,9 +78,6 @@
             <parameters>true</parameters>
             <enablePreview>true</enablePreview>
             <showWarnings>true</showWarnings>
-            <compilerArgs>
-              <arg>-Xlint:all</arg>
-            </compilerArgs>
           </configuration>
         </plugin>
         <plugin>
@@ -95,7 +92,8 @@
               </manifest>
               <manifestEntries>
                 <Built-By>Artan Programming Group</Built-By>
-                <Implementation-Title>${project.name}</Implementation-Title>
+                <Implementation-Name>${project.name}</Implementation-Name>
+                <Implementation-Description>${project.description}</Implementation-Description>
                 <Implementation-Version>${project.version}</Implementation-Version>
               </manifestEntries>
             </archive>
