@@ -4,7 +4,7 @@
   <parent>
     <groupId>ir.artanpg.boot</groupId>
     <artifactId>artan-boot-builder</artifactId>
-    <version>0.0.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
@@ -45,6 +45,8 @@
     <project.resources.sourceEncoding>UTF-8</project.resources.sourceEncoding>
 
     <maven.test.skip>true</maven.test.skip>
+
+    <main.basedir>${basedir}/../..</main.basedir>
 
     <!-- Libraries versions properties -->
     <mapstruct.version>1.6.3</mapstruct.version>
@@ -603,7 +605,6 @@
                 <pluginManagement>expand</pluginManagement>
                 <properties>remove</properties>
                 <repositories>remove</repositories>
-                <distributionManagement>remove</distributionManagement>
               </pomElements>
             </configuration>
           </execution>
@@ -623,7 +624,6 @@
                 <scm>remove</scm>
                 <issueManagement>remove</issueManagement>
                 <repositories>remove</repositories>
-                <distributionManagement>remove</distributionManagement>
               </pomElements>
             </configuration>
           </execution>
@@ -633,6 +633,60 @@
             <goals>
               <goal>clean</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>xml-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <!-- Cleanup the effective POM -->
+            <id>post-process-effective-pom</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>transform</goal>
+            </goals>
+            <configuration>
+              <transformationSets>
+                <transformationSet>
+                  <dir>${project.build.directory}/effective-pom</dir>
+                  <outputDir>${project.build.directory}/effective-pom</outputDir>
+                  <stylesheet>src/main/xslt/post-process-flattened-pom.xsl</stylesheet>
+                  <outputProperties>
+                    <outputProperty>
+                      <name>indent</name>
+                      <value>yes</value>
+                    </outputProperty>
+                  </outputProperties>
+                </transformationSet>
+              </transformationSets>
+            </configuration>
+          </execution>
+          <execution>
+            <!-- Cleanup the flattened project POM -->
+            <id>post-process-flattened-pom</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>transform</goal>
+            </goals>
+            <configuration>
+              <transformationSets>
+                <transformationSet>
+                  <dir>${project.basedir}</dir>
+                  <outputDir>${project.basedir}</outputDir>
+                  <includes>.flattened-pom.xml</includes>
+                  <stylesheet>src/main/xslt/post-process-flattened-pom.xsl</stylesheet>
+                  <outputProperties>
+                    <outputProperty>
+                      <name>indent</name>
+                      <value>yes</value>
+                    </outputProperty>
+                  </outputProperties>
+                </transformationSet>
+              </transformationSets>
+            </configuration>
           </execution>
         </executions>
       </plugin>
@@ -661,15 +715,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <distributionManagement>
-    <repository>
-      <id>maven-releases</id>
-      <url>https://repo.artanpg.ir/repository/maven-releases/</url>
-    </repository>
-    <snapshotRepository>
-      <id>maven-snapshots</id>
-      <url>https://repo.artanpg.ir/repository/maven-snapshots/</url>
-    </snapshotRepository>
-  </distributionManagement>
 </project>

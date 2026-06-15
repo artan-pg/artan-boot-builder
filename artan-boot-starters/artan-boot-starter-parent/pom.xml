@@ -4,7 +4,7 @@
   <parent>
     <groupId>ir.artanpg.boot</groupId>
     <artifactId>artan-boot-dependencies</artifactId>
-    <version>0.0.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <relativePath>../../artan-boot-platforms/artan-boot-dependencies</relativePath>
   </parent>
 
@@ -19,6 +19,8 @@
     <resource.delimiter>@</resource.delimiter>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <main.basedir>${basedir}/../..</main.basedir>
 
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -163,6 +165,7 @@
         <inherited>false</inherited>
         <executions>
           <execution>
+            <!-- Flatten and simplify our own POM for install/deploy -->
             <id>flatten</id>
             <phase>process-resources</phase>
             <goals>
@@ -170,19 +173,15 @@
             </goals>
             <configuration>
               <updatePomFile>true</updatePomFile>
-              <flattenMode>bom</flattenMode>
               <pomElements>
-                <parent>keep</parent>
+                <parent>expand</parent>
+                <name>keep</name>
+                <description>keep</description>
+                <url>expand</url>
                 <properties>keep</properties>
-                <dependencyManagement>keep</dependencyManagement>
                 <pluginManagement>keep</pluginManagement>
+                <dependencyManagement>keep</dependencyManagement>
                 <build>keep</build>
-                <profiles>keep</profiles>
-
-                <distributionManagement>remove</distributionManagement>
-                <repositories>remove</repositories>
-                <pluginRepositories>remove</pluginRepositories>
-                <modules>remove</modules>
               </pomElements>
             </configuration>
           </execution>
@@ -192,6 +191,37 @@
             <goals>
               <goal>clean</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>xml-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <!-- Cleanup the flattened project POM -->
+            <id>post-process-flattened-pom</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>transform</goal>
+            </goals>
+            <configuration>
+              <transformationSets>
+                <transformationSet>
+                  <dir>${project.basedir}</dir>
+                  <outputDir>${project.basedir}</outputDir>
+                  <includes>.flattened-pom.xml</includes>
+                  <stylesheet>src/main/xslt/post-process-flattened-pom.xsl</stylesheet>
+                  <outputProperties>
+                    <outputProperty>
+                      <name>indent</name>
+                      <value>yes</value>
+                    </outputProperty>
+                  </outputProperties>
+                </transformationSet>
+              </transformationSets>
+            </configuration>
           </execution>
         </executions>
       </plugin>
