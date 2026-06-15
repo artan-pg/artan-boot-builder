@@ -128,6 +128,12 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>ir.artanpg.boot</groupId>
+        <artifactId>artan-boot-starter</artifactId>
+        <version>${revision}</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.mapstruct</groupId>
         <artifactId>mapstruct</artifactId>
         <version>${mapstruct.version}</version>

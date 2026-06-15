@@ -20,5 +20,6 @@
 
   <modules>
     <module>artan-boot-starter-parent</module>
+    <module>artan-boot-starter</module>
   </modules>
 </project>
