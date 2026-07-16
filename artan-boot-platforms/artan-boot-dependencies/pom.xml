@@ -55,6 +55,9 @@
     <checkstyle.version>13.4.2</checkstyle.version>
     <spring-javaformat-checkstyle.version>0.0.47</spring-javaformat-checkstyle.version>
     <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
+    <pmd.version>7.26.0</pmd.version>
+
+    <jackson-databind-nullable.version>0.2.10</jackson-databind-nullable.version>
 
     <avro.version>1.12.1</avro.version>
     <kryo.version>5.6.2</kryo.version>
@@ -65,9 +68,13 @@
     <openjdk-jmh.version>1.37</openjdk-jmh.version>
     <wiremock.version>3.13.2</wiremock.version>
     <wiremock-grpc.version>0.11.0</wiremock-grpc.version>
+    <archunit.version>1.4.2</archunit.version>
 
+    <allure.version>2.35.3</allure.version>
+    <rest-assured.version>6.0.0</rest-assured.version>
     <gRPC.version>1.81.0</gRPC.version>
     <okhttp.version>5.3.2</okhttp.version>
+    <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
     <spring-boot.version>4.0.6</spring-boot.version>
     <spring-cloud.version>2025.1.1</spring-cloud.version>
 
@@ -102,6 +109,7 @@
 
     <maven-surefire-report-plugin.version>3.5.5</maven-surefire-report-plugin.version>
     <maven-project-info-reports-plugin.version>3.9.0</maven-project-info-reports-plugin.version>
+    <allure-maven-plugin.version>3.0.2</allure-maven-plugin.version>
 
     <build-helper-maven-plugin.version>3.6.1</build-helper-maven-plugin.version>
     <buildnumber-maven-plugin.version>3.3.0</buildnumber-maven-plugin.version>
@@ -115,6 +123,7 @@
     <keytool-maven-plugin.version>2.0.2</keytool-maven-plugin.version>
     <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
     <spotbugs-maven-plugin.version>4.9.8.3</spotbugs-maven-plugin.version>
+    <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
     <sonar-findbugs-plugin.version>4.6.0</sonar-findbugs-plugin.version>
     <sonar-maven-plugin.version>5.6.0.6792</sonar-maven-plugin.version>
     <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
@@ -169,6 +178,17 @@
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-annotations</artifactId>
         <version>${spotbugs-annotations.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.sourceforge.pmd</groupId>
+        <artifactId>pmd-java</artifactId>
+        <version>${pmd.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.openapitools</groupId>
+        <artifactId>jackson-databind-nullable</artifactId>
+        <version>${jackson-databind-nullable.version}</version>
       </dependency>
 
       <dependency>
@@ -297,7 +317,26 @@
         <artifactId>wiremock-grpc-extension-jetty12</artifactId>
         <version>${wiremock-grpc.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit-junit5</artifactId>
+        <version>${archunit.version}</version>
+      </dependency>
 
+      <dependency>
+        <groupId>io.qameta.allure</groupId>
+        <artifactId>allure-bom</artifactId>
+        <version>${allure.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.rest-assured</groupId>
+        <artifactId>rest-assured-bom</artifactId>
+        <version>${rest-assured.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-bom</artifactId>
@@ -309,6 +348,13 @@
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>okhttp-bom</artifactId>
         <version>${okhttp.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-bom</artifactId>
+        <version>${springdoc-openapi.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -473,6 +519,11 @@
           <artifactId>maven-project-info-reports-plugin</artifactId>
           <version>${maven-project-info-reports-plugin.version}</version>
         </plugin>
+        <plugin>
+          <groupId>io.qameta.allure</groupId>
+          <artifactId>allure-maven</artifactId>
+          <version>${allure-maven-plugin.version}</version>
+        </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
@@ -533,6 +584,11 @@
           <groupId>com.github.spotbugs</groupId>
           <artifactId>spotbugs-maven-plugin</artifactId>
           <version>${spotbugs-maven-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <version>${spotless-maven-plugin.version}</version>
         </plugin>
         <plugin>
           <groupId>com.github.spotbugs</groupId>
