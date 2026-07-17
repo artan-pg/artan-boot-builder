@@ -21,5 +21,6 @@
   <modules>
     <module>artan-boot-starter-parent</module>
     <module>artan-boot-starter</module>
+    <module>artan-boot-starter-test</module>
   </modules>
 </project>
