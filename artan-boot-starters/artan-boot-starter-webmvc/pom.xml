@@ -1,0 +1,81 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>ir.artanpg.boot</groupId>
+    <artifactId>artan-boot-starters</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>artan-boot-starter-webmvc</artifactId>
+  <packaging>jar</packaging>
+
+  <name>artan-boot-starter-webmvn</name>
+  <description>A starter module for implementing RESTful APIs.</description>
+
+  <scm>
+    <url>https://github.com/artan-pg/artan-boot-builder</url>
+    <connection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</connection>
+    <developerConnection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</developerConnection>
+  </scm>
+
+  <properties>
+    <main.basedir>${basedir}/../..</main.basedir>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ir.artanpg.boot</groupId>
+      <artifactId>artan-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.springframework</groupId>
+          <artifactId>spring-web</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.springframework</groupId>
+          <artifactId>spring-webmvc</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-jackson</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-validation</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+</project>
