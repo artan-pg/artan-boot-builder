@@ -1,0 +1,60 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>ir.artanpg.boot</groupId>
+    <artifactId>artan-boot-starters</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>artan-boot-starter-jetty</artifactId>
+  <packaging>jar</packaging>
+
+  <name>artan-boot-starter-jetty</name>
+  <description>
+    A starter module for automatically configures and launches Jetty as the embedded servlet container.
+  </description>
+
+  <scm>
+    <url>https://github.com/artan-pg/artan-boot-builder</url>
+    <connection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</connection>
+    <developerConnection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</developerConnection>
+  </scm>
+
+  <properties>
+    <main.basedir>${basedir}/../..</main.basedir>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ir.artanpg.boot</groupId>
+      <artifactId>artan-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-jetty</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.eclipse.jetty.ee11.websocket</groupId>
+      <artifactId>jetty-ee11-websocket-jakarta-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.ee11.websocket</groupId>
+      <artifactId>jetty-ee11-websocket-jetty-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.http2</groupId>
+      <artifactId>jetty-http2-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-alpn-conscrypt-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish.expressly</groupId>
+      <artifactId>expressly</artifactId>
+    </dependency>
+  </dependencies>
+</project>

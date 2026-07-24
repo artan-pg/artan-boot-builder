@@ -157,6 +157,11 @@
         <artifactId>artan-boot-starter-webmvc</artifactId>
         <version>${revision}</version>
       </dependency>
+      <dependency>
+        <groupId>ir.artanpg.boot</groupId>
+        <artifactId>artan-boot-starter-jetty</artifactId>
+        <version>${revision}</version>
+      </dependency>
 
       <dependency>
         <groupId>org.mapstruct</groupId>
