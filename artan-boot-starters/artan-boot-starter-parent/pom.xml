@@ -360,8 +360,8 @@
     <profile>
       <id>execute-tests</id>
       <properties>
-        <surefire.argLine/>
-        <failsafe.argLine/>
+        <surefire.argLine>-Xshare:off</surefire.argLine>
+        <failsafe.argLine>-Xshare:off</failsafe.argLine>
         <maven.test.skip>false</maven.test.skip>
         <jacoco.includes/>
         <jacoco.excludes/>
