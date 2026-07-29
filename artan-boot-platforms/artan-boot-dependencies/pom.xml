@@ -69,6 +69,7 @@
 
     <openjdk-jmh.version>1.37</openjdk-jmh.version>
     <byte-buddy.version>1.17.8</byte-buddy.version>
+    <mockito.version>5.20.0</mockito.version>
     <awaitility.version>4.3.0</awaitility.version>
     <wiremock.version>3.13.2</wiremock.version>
     <wiremock-grpc.version>0.11.0</wiremock-grpc.version>
