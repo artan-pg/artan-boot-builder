@@ -290,8 +290,8 @@
     <profile>
       <id>execute-tests</id>
       <properties>
-        <surefire.argLine>-XX:+EnableDynamicAgentLoading</surefire.argLine>
-        <failsafe.argLine>-XX:+EnableDynamicAgentLoading</failsafe.argLine>
+        <surefire.argLine/>
+        <failsafe.argLine/>
         <maven.test.skip>false</maven.test.skip>
         <jacoco.includes/>
         <jacoco.excludes/>
@@ -314,6 +314,7 @@
               <argLine>
                 @{surefire.argLine}
                 -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
+                -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
               </argLine>
               <includes>
                 <include>**/*Tests.java</include>
@@ -345,6 +346,7 @@
               <argLine>
                 @{failsafe.argLine}
                 -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
+                -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
               </argLine>
               <includes>
                 <include>**/*IntegrationTests.java</include>
