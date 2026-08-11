@@ -383,6 +383,7 @@
             <configuration>
               <argLine>
                 @{surefire.argLine}
+                --enable-preview
                 -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
                 -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
               </argLine>
@@ -415,6 +416,7 @@
             <configuration>
               <argLine>
                 @{failsafe.argLine}
+                --enable-preview
                 -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
                 -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
               </argLine>
