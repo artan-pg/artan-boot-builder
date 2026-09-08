@@ -49,6 +49,17 @@
     <revision>0.1.0-SNAPSHOT</revision>
     <main.basedir>${basedir}</main.basedir>
 
+    <checkstyle.include.test.source>false</checkstyle.include.test.source>
+    <checkstyle.config.location>
+      ${main.basedir}/src/checkstyle/checkstyle.xml
+    </checkstyle.config.location>
+    <checkstyle.properties.location>
+      ${main.basedir}/src/checkstyle/checkstyle-checker.properties
+    </checkstyle.properties.location>
+    <checkstyle.suppressions.location>
+      ${main.basedir}/src/checkstyle/suppressions.xml
+    </checkstyle.suppressions.location>
+
     <maven.test.skip>true</maven.test.skip>
 
     <maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
