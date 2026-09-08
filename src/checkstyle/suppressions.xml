@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionXpathFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+  <suppress checks="LineLength" files=".*[/\\]generated[/\\].*"/>
+  <suppress checks="MethodName" files=".*Tests?\.java$"/>
+  <suppress checks="AbstractClassName" files=".*Tests?\.java$"/>
+  <suppress checks="InnerTypeLast" files=".*Tests?\.java$"/>
+  <suppress checks="MagicNumber" files=".*Tests?\.java$"/>
+  <suppress checks="MultipleStringLiterals" files=".*Tests?\.java$"/>
+  <suppress checks=".*" files=".*[\\/]generated(-sources)?[\\/].*\.java$"/>
+</suppressions>
