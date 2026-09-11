@@ -4,6 +4,8 @@
       <option name="SPACE_INSIDE_ONE_LINE_ENUM_BRACES" value="true" />
       <option name="CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND" value="999" />
       <option name="NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND" value="999" />
+      <option name="JD_KEEP_INVALID_TAGS" value="false" />
+      <option name="JD_INDENT_ON_CONTINUATION" value="true" />
     </JavaCodeStyleSettings>
     <codeStyleSettings language="JSON">
       <indentOptions>
