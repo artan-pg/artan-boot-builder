@@ -16,12 +16,17 @@
 
 package ir.artanpg.boot.domain.model;
 
+import ir.artanpg.boot.domain.event.AbstractDomainEvent;
+import ir.artanpg.boot.domain.event.DomainEvent;
+import ir.artanpg.boot.domain.event.EventType;
+import ir.artanpg.boot.domain.event.EventTypeRegistry;
 import ir.artanpg.boot.domain.exception.DomainException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.util.List;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
@@ -106,6 +111,304 @@ class AggregateRootTests {
                     .as("Should throw DomainException when builder is null")
                     .isInstanceOf(DomainException.class)
                     .hasMessage("The builder cannot be null");
+        }
+    }
+
+    @Nested
+    @DisplayName("peekDomainEvents")
+    class PeekDomainEventsTests {
+
+        @Test
+        @DisplayName("should return empty list when no events registered")
+        void peekDomainEvents_ShouldReturnEmptyList_WhenNoEventsRegistered() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+
+            // when
+            List<DomainEvent<?, ?>> events = aggregate.peekDomainEvents();
+
+            // then
+            then(events)
+                    .as("Peek on a fresh aggregate should return an empty list")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should return registered events without removing them")
+        void peekDomainEvents_ShouldReturnRegisteredEventsWithoutRemoving_WhenEventsExist() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+
+            aggregate.registerEvent(event1);
+            aggregate.registerEvent(event2);
+
+            // when
+            List<DomainEvent<?, ?>> events = aggregate.peekDomainEvents();
+
+            // then
+            then(events)
+                    .as("Peek should return all registered events in insertion order")
+                    .containsExactly(event1, event2);
+            then(aggregate.peekDomainEvents())
+                    .as("Peek must not drain the events; subsequent peek should still see them")
+                    .hasSize(2);
+        }
+
+        @Test
+        @DisplayName("should return unmodifiable view of the events")
+        void peekDomainEvents_ShouldReturnUnmodifiableView_WhenCalled() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+
+            List<DomainEvent<?, ?>> events = aggregate.peekDomainEvents();
+
+            // when & then
+            thenThrownBy(() -> events.add(null))
+                    .as("Peek result should be an unmodifiable view")
+                    .isInstanceOf(UnsupportedOperationException.class);
+        }
+
+        @Test
+        @DisplayName("should reflect newly registered events as a live view")
+        void peekDomainEvents_ShouldReflectNewlyRegisteredEvents_WhenCalledAfterRegistration() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier("agg-007");
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            // when
+            List<DomainEvent<?, ?>> liveView = aggregate.peekDomainEvents();
+            then(liveView)
+                    .as("Live view should be empty before any registration")
+                    .isEmpty();
+
+            TestDomainEvent event = new TestDomainEvent(aggregateId, aggregate);
+            aggregate.registerEvent(event);
+
+            // then
+            then(liveView)
+                    .as("peek returns an unmodifiable *view*, so it reflects later registrations")
+                    .containsExactly(event);
+            then(aggregate.peekDomainEvents())
+                    .as("A fresh peek sees the same event")
+                    .containsExactly(event);
+        }
+    }
+
+    @Nested
+    @DisplayName("clearDomainEvents")
+    class ClearDomainEventsTests {
+
+        @Test
+        @DisplayName("should remove all registered events")
+        void clearDomainEvents_ShouldRemoveAllEvents_WhenEventsExist() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+
+            // when
+            aggregate.clearDomainEvents();
+
+            // then
+            then(aggregate.peekDomainEvents())
+                    .as("After clear, no events should remain registered")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should not throw when no events are registered")
+        void clearDomainEvents_ShouldDoNothing_WhenNoEventsRegistered() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+
+            // when
+            aggregate.clearDomainEvents();
+
+            // then
+            then(aggregate.peekDomainEvents())
+                    .as("Clearing an empty event list should leave it empty")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should allow registering new events after clearing")
+        void clearDomainEvents_ShouldAllowNewRegistrations_AfterBeingCalled() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+
+            // when
+            aggregate.clearDomainEvents();
+            TestDomainEvent newEvent = new TestDomainEvent(aggregateId, aggregate);
+            aggregate.registerEvent(newEvent);
+
+            // then
+            then(aggregate.peekDomainEvents())
+                    .as("Aggregate should keep collecting events after being cleared")
+                    .containsExactly(newEvent);
+        }
+    }
+
+    @Nested
+    @DisplayName("pullDomainEvents")
+    class PullDomainEventsTests {
+
+        @Test
+        @DisplayName("should return empty list when no events registered")
+        void pullDomainEvents_ShouldReturnEmptyList_WhenNoEventsRegistered() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+
+            // when
+            List<DomainEvent<?, ?>> events = aggregate.pullDomainEvents();
+
+            // then
+            then(events)
+                    .as("Pull on a fresh aggregate should return an empty list")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should return all registered events and drain them")
+        void pullDomainEvents_ShouldReturnAndDrainEvents_WhenEventsExist() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+
+            aggregate.registerEvent(event1);
+            aggregate.registerEvent(event2);
+
+            // when
+            List<DomainEvent<?, ?>> events = aggregate.pullDomainEvents();
+
+            // then
+            then(events)
+                    .as("Pull should return all collected events in insertion order")
+                    .containsExactly(event1, event2);
+            then(aggregate.peekDomainEvents())
+                    .as("Pull should drain the internal event list")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should return empty list on second consecutive call")
+        void pullDomainEvents_ShouldReturnEmptyList_WhenCalledTwiceConsecutively() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+
+            // when
+            List<DomainEvent<?, ?>> firstPull = aggregate.pullDomainEvents();
+            List<DomainEvent<?, ?>> secondPull = aggregate.pullDomainEvents();
+
+            // then
+            then(firstPull).hasSize(1);
+            then(secondPull)
+                    .as("Events already pulled; second pull must be empty (exactly-once semantics)")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should return immutable snapshot unaffected by later registrations")
+        void pullDomainEvents_ShouldReturnImmutableSnapshot_WhenNewEventsRegisteredAfterwards() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier("agg-007");
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            aggregate.registerEvent(event1);
+
+            // when
+            List<DomainEvent<?, ?>> pulled = aggregate.pullDomainEvents();
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+            aggregate.registerEvent(event2);
+
+            // then
+            then(pulled)
+                    .as("Pulled snapshot should only contain the event present at pull time")
+                    .containsExactly(event1);
+            then(aggregate.peekDomainEvents())
+                    .as("Newly registered event should be collected independently")
+                    .containsExactly(event2);
+        }
+
+        @Test
+        @DisplayName("should throw UnsupportedOperationException when modifying returned list")
+        void pullDomainEvents_ShouldReturnUnmodifiableList_WhenCalled() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+            aggregate.registerEvent(new TestDomainEvent(aggregateId, aggregate));
+
+            List<DomainEvent<?, ?>> pulled = aggregate.pullDomainEvents();
+
+            // when & then
+            thenThrownBy(pulled::clear)
+                    .as("Pulled snapshot is immutable and should reject mutations")
+                    .isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("registerEvent")
+    class RegisterEventTests {
+
+        @Test
+        void registerEvent_ShouldAddEventToList_WhenValidEventProvided() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event = new TestDomainEvent(aggregateId, aggregate);
+
+            // when
+            aggregate.registerEvent(event);
+
+            // then
+            then(aggregate.peekDomainEvents()).containsExactly(event);
+        }
+
+        @Test
+        void registerEvent_ShouldMaintainInsertionOrder_WhenMultipleEventsRegistered() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event3 = new TestDomainEvent(aggregateId, aggregate);
+
+            // when
+            aggregate.registerEvent(event1);
+            aggregate.registerEvent(event2);
+            aggregate.registerEvent(event3);
+
+            // then
+            then(aggregate.peekDomainEvents()).containsExactly(event1, event2, event3);
+        }
+
+
+        @Test
+        void registerEvent_ShouldThrowDomainException_WhenEventIsNull() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+
+            // when & then
+            thenThrownBy(() -> aggregate.registerEvent(null))
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage("The event object cannot be null");
         }
     }
 
@@ -335,6 +638,18 @@ class AggregateRootTests {
         @Override
         public String value() {
             return this.value;
+        }
+    }
+
+    private static class TestDomainEvent extends AbstractDomainEvent<TestIdentifier, TestAggregate> {
+
+        TestDomainEvent(TestIdentifier aggregateId, TestAggregate aggregate) {
+            super(aggregateId, aggregate);
+        }
+
+        @Override
+        public EventType eventType() {
+            return EventTypeRegistry.valueOf("TEST");
         }
     }
 

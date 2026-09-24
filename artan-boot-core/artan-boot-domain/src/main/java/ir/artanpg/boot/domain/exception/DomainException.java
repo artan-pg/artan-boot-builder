@@ -29,6 +29,9 @@ import java.io.Serial;
  * @author Mohammad Yazdian
  * @see UseCaseException
  * @see BusinessValidationException
+ * @see DomainEventException
+ * @see SerializationException
+ * @see InterceptorVetoException
  * @since 0.1.0
  */
 public class DomainException extends RuntimeException {
