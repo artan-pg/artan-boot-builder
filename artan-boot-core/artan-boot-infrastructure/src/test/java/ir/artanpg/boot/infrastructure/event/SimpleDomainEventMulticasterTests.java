@@ -38,11 +38,10 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.never;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Unit tests for {@link SimpleDomainEventMulticaster}.
@@ -140,7 +139,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        verifyNoInteractions(smartListener);
+        verify(smartListener, never()).process(any());
     }
 
     @Test
