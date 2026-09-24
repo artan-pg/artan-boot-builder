@@ -1,0 +1,67 @@
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>ir.artanpg.boot</groupId>
+    <artifactId>artan-boot-core</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>artan-boot-application</artifactId>
+  <packaging>jar</packaging>
+
+  <name>artan-boot-application</name>
+  <description>
+    Base classes and interfaces for implementing the application layer of the hexagonal architecture.
+  </description>
+
+  <scm>
+    <url>https://github.com/artan-pg/artan-boot-builder</url>
+    <connection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</connection>
+    <developerConnection>scm:git:https://github.com/artan-pg/artan-boot-builder.git</developerConnection>
+  </scm>
+
+  <properties>
+    <main.basedir>${basedir}/../..</main.basedir>
+
+    <jacoco.haltOnFailure>false</jacoco.haltOnFailure>
+    <jacoco.includes>ir/artanpg/boot/application/**</jacoco.includes>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ir.artanpg.boot</groupId>
+      <artifactId>artan-boot-domain</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>ir.artanpg.boot</groupId>
+      <artifactId>artan-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <fork>false</fork>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
