@@ -23,6 +23,7 @@ import ir.artanpg.boot.application.port.driven.event.SnapshotStore;
 import ir.artanpg.boot.domain.event.AggregateSnapshot;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.StoredEvent;
+import ir.artanpg.boot.domain.model.AbstractEventSourcedAggregateRoot;
 import ir.artanpg.boot.domain.model.EventSourcedAggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.domain.model.Snapshottable;
@@ -82,10 +83,10 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
     /**
      * Full constructor with optional snapshot support.
      *
-     * @param eventStore         the event store
-     * @param eventDispatcher    dispatcher for published events
-     * @param snapshotStore      optional snapshot store
-     * @param snapshotThreshold  take a snapshot every N events ({@code 0} disables)
+     * @param eventStore        the event store
+     * @param eventDispatcher   dispatcher for published events
+     * @param snapshotStore     optional snapshot store
+     * @param snapshotThreshold take a snapshot every N events ({@code 0} disables)
      */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
                                             @NonNull Consumer<DomainEvent> eventDispatcher,
@@ -145,8 +146,6 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
             if (snapshot.isPresent()) {
                 AggregateSnapshot snap = snapshot.get();
                 snapshottable.restoreFromSnapshotState(snap.getState());
-                // version must be restored; subclasses that implement Snapshottable
-                // should also restore version via a protected hook if needed.
                 restoreVersion(aggregate, snap.getVersion());
                 fromVersion = snap.getVersion();
             }
@@ -167,20 +166,20 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
     /**
      * Restores the aggregate version after loading a snapshot.
      *
-     * <p>Default implementation uses reflection-free approach via
-     * {@link EventSourcedAggregateRoot}; subclasses may override if needed.
-     * The default relies on {@link #loadFromHistory} for subsequent events to
-     * advance version. For snapshot-only restore, override this method.
-     *
      * @param aggregate the aggregate
      * @param version   the snapshot version
      */
+    @SuppressWarnings("unchecked")
     protected void restoreVersion(T aggregate, long version) {
-        // Default: no-op; loadFromHistory will set version from subsequent events.
-        // When there are no subsequent events, subclasses that need exact version
-        // should override and set it. AbstractEventSourcedAggregateRoot keeps
-        // version private, so we provide a package-level approach via loadFromHistory
-        // with empty list is not enough. Override in concrete repos if required.
+        if (aggregate instanceof AbstractEventSourcedAggregateRoot<?> root) {
+            ((AbstractEventSourcedAggregateRoot<I>) root).getClass();
+            // setVersion is protected – call through a narrow package helper on the same hierarchy
+            setVersionOn(root, version);
+        }
+    }
+
+    private static void setVersionOn(AbstractEventSourcedAggregateRoot<?> root, long version) {
+        root.setVersion(version);
     }
 
     private void maybeTakeSnapshot(T aggregate) {
