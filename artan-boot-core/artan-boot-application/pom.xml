@@ -26,12 +26,20 @@
 
     <jacoco.haltOnFailure>false</jacoco.haltOnFailure>
     <jacoco.includes>ir/artanpg/boot/application/**</jacoco.includes>
+    <jacoco.excludes>
+      ir/artanpg/boot/application/port/driven/event/**
+    </jacoco.excludes>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>ir.artanpg.boot</groupId>
       <artifactId>artan-boot-domain</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
 
     <dependency>
