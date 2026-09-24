@@ -16,10 +16,12 @@
 
 package ir.artanpg.boot.infrastructure.event;
 
+import ir.artanpg.boot.application.port.driven.event.DomainEventInterceptor;
 import ir.artanpg.boot.application.port.driven.event.DomainEventMulticaster;
 import ir.artanpg.boot.application.port.driven.event.DomainEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -35,6 +37,10 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@link DomainEventHandlerAnnotationBeanPostProcessor} to detect and
  *       register methods annotated with
  *       {@link ir.artanpg.boot.application.annotation.DomainEventHandler}</li>
+ *   <li>{@link AggregateDomainEventPublisher} helper for publishing events
+ *       from aggregates</li>
+ *   <li>{@link LoggingDomainEventInterceptor} when the property
+ *       {@code artan.boot.event.logging-interceptor.enabled=true}</li>
  * </ul>
  *
  * @author Mohammad Yazdian
@@ -83,5 +89,34 @@ public class DomainEventAutoConfiguration {
     public static DomainEventHandlerAnnotationBeanPostProcessor domainEventHandlerAnnotationBeanPostProcessor(
             DomainEventMulticaster multicaster) {
         return new DomainEventHandlerAnnotationBeanPostProcessor(multicaster);
+    }
+
+    /**
+     * Creates a helper for publishing domain events collected by aggregates.
+     *
+     * @param publisher the domain event publisher
+     * @return a new {@link AggregateDomainEventPublisher} instance
+     */
+    @Bean
+    @ConditionalOnMissingBean(AggregateDomainEventPublisher.class)
+    public AggregateDomainEventPublisher aggregateDomainEventPublisher(DomainEventPublisher publisher) {
+        return new AggregateDomainEventPublisher(publisher);
+    }
+
+    /**
+     * Creates and registers a logging interceptor when enabled via property.
+     *
+     * <p>Enable with: {@code artan.boot.event.logging-interceptor.enabled=true}
+     *
+     * @param multicaster the multicaster to register the interceptor with
+     * @return the logging interceptor instance
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "artan.boot.event.logging-interceptor", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean(LoggingDomainEventInterceptor.class)
+    public DomainEventInterceptor loggingDomainEventInterceptor(DomainEventMulticaster multicaster) {
+        LoggingDomainEventInterceptor interceptor = new LoggingDomainEventInterceptor();
+        multicaster.addInterceptor(interceptor);
+        return interceptor;
     }
 }
