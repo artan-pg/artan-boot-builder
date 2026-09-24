@@ -365,5 +365,6 @@
   <modules>
     <module>artan-boot-platforms</module>
     <module>artan-boot-starters</module>
+    <module>artan-boot-core</module>
   </modules>
 </project>
