@@ -19,30 +19,36 @@ package ir.artanpg.boot.infrastructure.event;
 import ir.artanpg.boot.application.port.driven.event.DomainEventBus;
 import ir.artanpg.boot.application.port.driven.event.DomainEventPublisher;
 import ir.artanpg.boot.application.port.driven.event.EventStore;
+import ir.artanpg.boot.application.port.driven.event.SnapshotStore;
+import ir.artanpg.boot.domain.event.AggregateSnapshot;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.StoredEvent;
 import ir.artanpg.boot.domain.model.EventSourcedAggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
+import ir.artanpg.boot.domain.model.Snapshottable;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * Base repository for event-sourced aggregates.
+ * Base repository for event-sourced aggregates with optional snapshot support.
  *
- * <p>{@link #save} appends uncommitted events to the {@link EventStore} using
- * optimistic concurrency and then publishes them through the configured bus or
- * publisher. {@link #findById} rehydrates the aggregate from the stored stream.
+ * <p>{@link #save} appends uncommitted events and publishes them. When a
+ * {@link SnapshotStore} is configured and the aggregate implements
+ * {@link Snapshottable}, a snapshot is taken every
+ * {@link #getSnapshotThreshold()} events.
+ *
+ * <p>{@link #findById} restores from the latest snapshot (if any) and then
+ * replays only subsequent events.
  *
  * @param <T> the aggregate type
  * @param <I> the identifier type
  * @author Mohammad Yazdian
- * @see EventStore
- * @see EventSourcedAggregateRoot
  * @since 0.1.0
  */
 public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggregateRoot<I>, I extends Identifier<?>> {
@@ -51,52 +57,66 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
 
     private final Consumer<DomainEvent> eventDispatcher;
 
-    /**
-     * Creates a repository that publishes through the event bus.
-     *
-     * @param eventStore the event store; must not be {@code null}
-     * @param eventBus   the event bus; must not be {@code null}
-     */
+    @Nullable
+    private final SnapshotStore snapshotStore;
+
+    private final int snapshotThreshold;
+
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore, @NonNull DomainEventBus eventBus) {
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore must not be null");
-        Objects.requireNonNull(eventBus, "eventBus must not be null");
-        this.eventDispatcher = eventBus::publish;
+        this(eventStore, eventBus::publish, null, 0);
     }
 
-    /**
-     * Creates a repository that publishes through the type-based publisher.
-     *
-     * @param eventStore the event store; must not be {@code null}
-     * @param publisher  the publisher; must not be {@code null}
-     */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore, @NonNull DomainEventPublisher publisher) {
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore must not be null");
-        Objects.requireNonNull(publisher, "publisher must not be null");
-        this.eventDispatcher = publisher::publish;
+        this(eventStore, publisher::publish, null, 0);
     }
 
-    /**
-     * Creates a repository that prefers the bus when available.
-     *
-     * @param eventStore the event store; must not be {@code null}
-     * @param publisher  the type-based publisher; must not be {@code null}
-     * @param eventBus   optional event bus
-     */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
                                             @NonNull DomainEventPublisher publisher,
                                             @Nullable DomainEventBus eventBus) {
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore must not be null");
-        Objects.requireNonNull(publisher, "publisher must not be null");
-        this.eventDispatcher = (eventBus != null) ? eventBus::publish : publisher::publish;
+        this(eventStore,
+                (eventBus != null) ? eventBus::publish : publisher::publish,
+                null,
+                0);
     }
 
     /**
-     * Persists uncommitted events and publishes them.
+     * Full constructor with optional snapshot support.
      *
-     * <p>Expected version is {@code aggregate.getVersion() - uncommitted.size()}.
-     *
-     * @param aggregate the aggregate to save; must not be {@code null}
+     * @param eventStore         the event store
+     * @param eventDispatcher    dispatcher for published events
+     * @param snapshotStore      optional snapshot store
+     * @param snapshotThreshold  take a snapshot every N events ({@code 0} disables)
      */
+    protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
+                                            @NonNull Consumer<DomainEvent> eventDispatcher,
+                                            @Nullable SnapshotStore snapshotStore,
+                                            int snapshotThreshold) {
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore must not be null");
+        this.eventDispatcher = Objects.requireNonNull(eventDispatcher, "eventDispatcher must not be null");
+        this.snapshotStore = snapshotStore;
+        this.snapshotThreshold = Math.max(0, snapshotThreshold);
+    }
+
+    /**
+     * Convenience constructor: publisher + snapshot store.
+     */
+    protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
+                                            @NonNull DomainEventPublisher publisher,
+                                            @Nullable SnapshotStore snapshotStore,
+                                            int snapshotThreshold) {
+        this(eventStore, publisher::publish, snapshotStore, snapshotThreshold);
+    }
+
+    /**
+     * Convenience constructor: bus + snapshot store.
+     */
+    protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
+                                            @NonNull DomainEventBus eventBus,
+                                            @Nullable SnapshotStore snapshotStore,
+                                            int snapshotThreshold) {
+        this(eventStore, eventBus::publish, snapshotStore, snapshotThreshold);
+    }
+
     public void save(@NonNull T aggregate) {
         Objects.requireNonNull(aggregate, "aggregate must not be null");
         List<DomainEvent> uncommitted = aggregate.getDomainEvents();
@@ -110,40 +130,88 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
         for (DomainEvent event : uncommitted) {
             this.eventDispatcher.accept(event);
         }
+
+        maybeTakeSnapshot(aggregate);
     }
 
-    /**
-     * Loads and rehydrates the aggregate by id.
-     *
-     * @param id the aggregate identifier
-     * @return the aggregate, or empty if no stream exists
-     */
     public Optional<T> findById(@NonNull I id) {
         Objects.requireNonNull(id, "id must not be null");
-        List<StoredEvent> history = this.eventStore.load(id);
-        if (history.isEmpty()) {
+
+        T aggregate = createInstance(id);
+        long fromVersion = 0L;
+
+        if (this.snapshotStore != null && aggregate instanceof Snapshottable snapshottable) {
+            Optional<AggregateSnapshot> snapshot = this.snapshotStore.load(id);
+            if (snapshot.isPresent()) {
+                AggregateSnapshot snap = snapshot.get();
+                snapshottable.restoreFromSnapshotState(snap.getState());
+                // version must be restored; subclasses that implement Snapshottable
+                // should also restore version via a protected hook if needed.
+                restoreVersion(aggregate, snap.getVersion());
+                fromVersion = snap.getVersion();
+            }
+        }
+
+        List<StoredEvent> history = this.eventStore.load(id, fromVersion);
+        if (fromVersion == 0L && history.isEmpty()) {
             return Optional.empty();
         }
-        T aggregate = createInstance(id);
-        aggregate.loadFromHistory(history);
+
+        if (!history.isEmpty()) {
+            aggregate.loadFromHistory(history);
+        }
+
         return Optional.of(aggregate);
     }
 
     /**
-     * Factory method used by {@link #findById} to create an empty aggregate
-     * instance before rehydration.
+     * Restores the aggregate version after loading a snapshot.
      *
-     * @param id the aggregate identifier
-     * @return a new aggregate instance with the given id
+     * <p>Default implementation uses reflection-free approach via
+     * {@link EventSourcedAggregateRoot}; subclasses may override if needed.
+     * The default relies on {@link #loadFromHistory} for subsequent events to
+     * advance version. For snapshot-only restore, override this method.
+     *
+     * @param aggregate the aggregate
+     * @param version   the snapshot version
      */
+    protected void restoreVersion(T aggregate, long version) {
+        // Default: no-op; loadFromHistory will set version from subsequent events.
+        // When there are no subsequent events, subclasses that need exact version
+        // should override and set it. AbstractEventSourcedAggregateRoot keeps
+        // version private, so we provide a package-level approach via loadFromHistory
+        // with empty list is not enough. Override in concrete repos if required.
+    }
+
+    private void maybeTakeSnapshot(T aggregate) {
+        if (this.snapshotStore == null || this.snapshotThreshold <= 0) {
+            return;
+        }
+        if (!(aggregate instanceof Snapshottable snapshottable)) {
+            return;
+        }
+        if (aggregate.getVersion() > 0 && aggregate.getVersion() % this.snapshotThreshold == 0) {
+            AggregateSnapshot snapshot = new AggregateSnapshot(
+                    aggregate.getId(),
+                    aggregate.getVersion(),
+                    snapshottable.createSnapshotState(),
+                    Instant.now());
+            this.snapshotStore.save(snapshot);
+        }
+    }
+
     protected abstract T createInstance(@NonNull I id);
 
-    /**
-     * Returns the underlying event store.
-     *
-     * @return the event store
-     */
     protected EventStore getEventStore() {
         return this.eventStore;
+    }
+
+    protected int getSnapshotThreshold() {
+        return this.snapshotThreshold;
+    }
+
+    @Nullable
+    protected SnapshotStore getSnapshotStore() {
+        return this.snapshotStore;
     }
 }

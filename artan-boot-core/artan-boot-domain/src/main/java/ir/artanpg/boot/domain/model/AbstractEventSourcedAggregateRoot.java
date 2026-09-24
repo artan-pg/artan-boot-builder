@@ -62,6 +62,18 @@ public abstract class AbstractEventSourcedAggregateRoot<I extends Identifier<?>>
     }
 
     /**
+     * Sets the stream version (used when restoring from a snapshot).
+     *
+     * @param version the version to set; must not be negative
+     */
+    protected void setVersion(long version) {
+        if (version < 0) {
+            throw new DomainException("version cannot be negative");
+        }
+        this.version = version;
+    }
+
+    /**
      * Applies a new domain event: updates state and registers it as uncommitted.
      *
      * @param event the new domain event
@@ -75,8 +87,6 @@ public abstract class AbstractEventSourcedAggregateRoot<I extends Identifier<?>>
 
     /**
      * Applies state changes for the given event without registering it.
-     *
-     * <p>Subclasses implement this to fold events into aggregate state.
      *
      * @param event the event to fold into state
      */
