@@ -16,11 +16,11 @@
 
 package ir.artanpg.boot.infrastructure.event;
 
+import ir.artanpg.boot.application.port.driven.event.DomainEventBus;
 import ir.artanpg.boot.application.port.driven.event.DomainEventPublisher;
 import ir.artanpg.boot.infrastructure.event.support.TestAggregateRoot;
 import ir.artanpg.boot.infrastructure.event.support.TestDomainEvent;
 import ir.artanpg.boot.infrastructure.event.support.TestIdentifier;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -42,35 +43,61 @@ class AggregateDomainEventPublisherTests {
     @Mock
     private DomainEventPublisher publisher;
 
-    private AggregateDomainEventPublisher aggregatePublisher;
-
-    @BeforeEach
-    void setUp() {
-        aggregatePublisher = new AggregateDomainEventPublisher(publisher);
-    }
+    @Mock
+    private DomainEventBus eventBus;
 
     @Test
-    void publishEventsFrom_ShouldPublishAllRegisteredEvents_WhenAggregateHasEvents() {
+    void publishEventsFrom_ShouldUsePublisher_WhenOnlyPublisherIsConfigured() {
         // given
+        AggregateDomainEventPublisher aggregatePublisher = new AggregateDomainEventPublisher(publisher);
         TestAggregateRoot aggregate = new TestAggregateRoot(new TestIdentifier("agg-1"));
-        TestDomainEvent event1 = new TestDomainEvent(new TestIdentifier("agg-1"), "one");
-        TestDomainEvent event2 = new TestDomainEvent(new TestIdentifier("agg-1"), "two");
-        aggregate.doSomething(event1);
-        aggregate.doSomething(event2);
+        TestDomainEvent event = new TestDomainEvent(new TestIdentifier("agg-1"), "one");
+        aggregate.doSomething(event);
 
         // when
         aggregatePublisher.publishEventsFrom(aggregate);
 
         // then
-        verify(publisher).publish(event1);
-        verify(publisher).publish(event2);
-        // getDomainEvents() clears the collection
+        verify(publisher).publish(event);
         then(aggregate.getDomainEvents()).isEmpty();
+    }
+
+    @Test
+    void publishEventsFrom_ShouldUseBus_WhenBusIsConfigured() {
+        // given
+        AggregateDomainEventPublisher aggregatePublisher = new AggregateDomainEventPublisher(eventBus);
+        TestAggregateRoot aggregate = new TestAggregateRoot(new TestIdentifier("agg-1"));
+        TestDomainEvent event = new TestDomainEvent(new TestIdentifier("agg-1"), "one");
+        aggregate.doSomething(event);
+
+        // when
+        aggregatePublisher.publishEventsFrom(aggregate);
+
+        // then
+        verify(eventBus).publish(event);
+    }
+
+    @Test
+    void publishEventsFrom_ShouldPreferBus_WhenBothPublisherAndBusAreProvided() {
+        // given
+        AggregateDomainEventPublisher aggregatePublisher =
+                new AggregateDomainEventPublisher(publisher, eventBus);
+        TestAggregateRoot aggregate = new TestAggregateRoot(new TestIdentifier("agg-1"));
+        TestDomainEvent event = new TestDomainEvent(new TestIdentifier("agg-1"), "one");
+        aggregate.doSomething(event);
+
+        // when
+        aggregatePublisher.publishEventsFrom(aggregate);
+
+        // then
+        verify(eventBus).publish(event);
+        verify(publisher, never()).publish(event);
     }
 
     @Test
     void publishEventsFrom_ShouldDoNothing_WhenAggregateHasNoEvents() {
         // given
+        AggregateDomainEventPublisher aggregatePublisher = new AggregateDomainEventPublisher(publisher);
         TestAggregateRoot aggregate = new TestAggregateRoot(new TestIdentifier("agg-1"));
 
         // when
@@ -82,17 +109,12 @@ class AggregateDomainEventPublisherTests {
 
     @Test
     void publishEventsFrom_ShouldThrowNullPointerException_WhenAggregateIsNull() {
-        // given / when / then
+        // given
+        AggregateDomainEventPublisher aggregatePublisher = new AggregateDomainEventPublisher(publisher);
+
+        // when / then
         thenThrownBy(() -> aggregatePublisher.publishEventsFrom(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("aggregate must not be null");
-    }
-
-    @Test
-    void constructor_ShouldThrowNullPointerException_WhenPublisherIsNull() {
-        // given / when / then
-        thenThrownBy(() -> new AggregateDomainEventPublisher(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("publisher must not be null");
     }
 }

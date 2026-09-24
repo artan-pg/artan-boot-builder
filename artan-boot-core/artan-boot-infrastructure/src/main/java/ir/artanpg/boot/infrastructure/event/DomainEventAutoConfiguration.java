@@ -46,9 +46,6 @@ public class DomainEventAutoConfiguration {
         return new SimpleDomainEventPublisher(multicaster);
     }
 
-    /**
-     * In-process event bus that wraps the type-based publisher.
-     */
     @Bean
     @ConditionalOnMissingBean(DomainEventBus.class)
     public DomainEventBus domainEventBus(DomainEventPublisher publisher) {
@@ -65,8 +62,10 @@ public class DomainEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AggregateDomainEventPublisher.class)
-    public AggregateDomainEventPublisher aggregateDomainEventPublisher(DomainEventPublisher publisher) {
-        return new AggregateDomainEventPublisher(publisher);
+    public AggregateDomainEventPublisher aggregateDomainEventPublisher(
+            DomainEventPublisher publisher,
+            DomainEventBus eventBus) {
+        return new AggregateDomainEventPublisher(publisher, eventBus);
     }
 
     @Bean
