@@ -17,4 +17,8 @@
   <properties>
     <main.basedir>${basedir}/..</main.basedir>
   </properties>
+
+  <modules>
+    <module>artan-boot-domain</module>
+  </modules>
 </project>
