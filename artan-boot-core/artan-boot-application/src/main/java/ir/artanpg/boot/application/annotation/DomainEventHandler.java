@@ -28,8 +28,10 @@ import java.lang.annotation.Target;
  * Annotation that marks a method as a domain event handler.
  *
  * <p>Methods annotated with {@code @DomainEventHandler} are automatically
- * registered as listeners for the specified domain event types. The method
- * must accept a single parameter that is a subtype of {@link DomainEvent}.
+ * registered as listeners. When {@link #topic()} is empty, the handler is
+ * registered with the type-based multicaster (phase 1). When {@link #topic()}
+ * is set, the handler is registered on the {@code DomainEventBus} for that
+ * topic (phase 2).
  *
  * <h2>Method Requirements:</h2>
  * <ul>
@@ -43,18 +45,19 @@ import java.lang.annotation.Target;
  * <pre>{@code
  * @DomainEventHandler
  * public void onAccountOpened(AccountOpenedEvent event) {
- *     // handle the event
+ *     // type-based (multicaster)
  * }
  *
- * @DomainEventHandler(order = 10, async = false)
- * public void onHighPriorityEvent(PaymentCompletedEvent event) {
- *     // handle with higher priority
+ * @DomainEventHandler(topic = "account.lifecycle", order = 10)
+ * public void onAccountLifecycle(AccountOpenedEvent event) {
+ *     // topic-based (event bus)
  * }
  * }</pre>
  *
  * @author Mohammad Yazdian
  * @see ir.artanpg.boot.application.port.driven.event.DomainEventListener
  * @see ir.artanpg.boot.application.port.driven.event.DomainEventMulticaster
+ * @see ir.artanpg.boot.application.port.driven.event.DomainEventBus
  * @since 0.1.0
  */
 @Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
@@ -73,7 +76,19 @@ public @interface DomainEventHandler {
     Class<? extends DomainEvent>[] value() default {};
 
     /**
-     * The order of this handler relative to other handlers for the same event.
+     * Optional topic name for topic-based routing on the event bus.
+     *
+     * <p>When empty, the handler is registered with the type-based
+     * multicaster. When non-empty, the handler is subscribed to the given
+     * topic on the {@code DomainEventBus}.
+     *
+     * @return the topic name, or empty for type-based registration
+     */
+    String topic() default "";
+
+    /**
+     * The order of this handler relative to other handlers for the same event
+     * or topic.
      *
      * <p>Handlers with a lower order value have higher priority and are
      * invoked earlier. The default value is {@link Integer#MAX_VALUE},
@@ -86,10 +101,10 @@ public @interface DomainEventHandler {
     /**
      * Whether this handler supports asynchronous execution.
      *
-     * <p>When {@code true}, the multicaster may execute this handler on a
-     * different thread.
+     * <p>When {@code true}, the multicaster or bus may execute this handler on a
+     * different thread. Full async support is provided in later phases.
      *
-     * @return {@code true} if asynchronous execution is supported, {@code false} otherwise
+     * @return {@code true} if asynchronous execution is supported
      */
-    boolean async() default true;
+    boolean async() default false;
 }
