@@ -61,12 +61,8 @@ public abstract class AbstractEventSourcedAggregateRoot<I extends Identifier<?>>
         return this.version;
     }
 
-    /**
-     * Sets the stream version (used when restoring from a snapshot).
-     *
-     * @param version the version to set; must not be negative
-     */
-    protected void setVersion(long version) {
+    @Override
+    public void restoreVersion(long version) {
         if (version < 0) {
             throw new DomainException("version cannot be negative");
         }

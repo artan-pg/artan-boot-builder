@@ -23,7 +23,6 @@ import ir.artanpg.boot.application.port.driven.event.SnapshotStore;
 import ir.artanpg.boot.domain.event.AggregateSnapshot;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.StoredEvent;
-import ir.artanpg.boot.domain.model.AbstractEventSourcedAggregateRoot;
 import ir.artanpg.boot.domain.model.EventSourcedAggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.domain.model.Snapshottable;
@@ -80,14 +79,6 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
                 0);
     }
 
-    /**
-     * Full constructor with optional snapshot support.
-     *
-     * @param eventStore        the event store
-     * @param eventDispatcher   dispatcher for published events
-     * @param snapshotStore     optional snapshot store
-     * @param snapshotThreshold take a snapshot every N events ({@code 0} disables)
-     */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
                                             @NonNull Consumer<DomainEvent> eventDispatcher,
                                             @Nullable SnapshotStore snapshotStore,
@@ -98,9 +89,6 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
         this.snapshotThreshold = Math.max(0, snapshotThreshold);
     }
 
-    /**
-     * Convenience constructor: publisher + snapshot store.
-     */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
                                             @NonNull DomainEventPublisher publisher,
                                             @Nullable SnapshotStore snapshotStore,
@@ -108,9 +96,6 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
         this(eventStore, publisher::publish, snapshotStore, snapshotThreshold);
     }
 
-    /**
-     * Convenience constructor: bus + snapshot store.
-     */
     protected AbstractEventSourcedRepository(@NonNull EventStore eventStore,
                                             @NonNull DomainEventBus eventBus,
                                             @Nullable SnapshotStore snapshotStore,
@@ -146,7 +131,7 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
             if (snapshot.isPresent()) {
                 AggregateSnapshot snap = snapshot.get();
                 snapshottable.restoreFromSnapshotState(snap.getState());
-                restoreVersion(aggregate, snap.getVersion());
+                aggregate.restoreVersion(snap.getVersion());
                 fromVersion = snap.getVersion();
             }
         }
@@ -161,25 +146,6 @@ public abstract class AbstractEventSourcedRepository<T extends EventSourcedAggre
         }
 
         return Optional.of(aggregate);
-    }
-
-    /**
-     * Restores the aggregate version after loading a snapshot.
-     *
-     * @param aggregate the aggregate
-     * @param version   the snapshot version
-     */
-    @SuppressWarnings("unchecked")
-    protected void restoreVersion(T aggregate, long version) {
-        if (aggregate instanceof AbstractEventSourcedAggregateRoot<?> root) {
-            ((AbstractEventSourcedAggregateRoot<I>) root).getClass();
-            // setVersion is protected – call through a narrow package helper on the same hierarchy
-            setVersionOn(root, version);
-        }
-    }
-
-    private static void setVersionOn(AbstractEventSourcedAggregateRoot<?> root, long version) {
-        root.setVersion(version);
     }
 
     private void maybeTakeSnapshot(T aggregate) {

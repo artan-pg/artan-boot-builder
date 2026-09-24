@@ -16,7 +16,6 @@
 
 package ir.artanpg.boot.domain.model;
 
-import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.StoredEvent;
 
 import java.util.List;
@@ -52,4 +51,16 @@ public interface EventSourcedAggregateRoot<I extends Identifier<?>> extends Aggr
      * @param history the ordered history of stored events
      */
     void loadFromHistory(List<StoredEvent> history);
+
+    /**
+     * Restores the stream version after loading a snapshot.
+     *
+     * <p>Default implementation is a no-op. {@link AbstractEventSourcedAggregateRoot}
+     * overrides this to set the internal version field.
+     *
+     * @param version the snapshot version
+     */
+    default void restoreVersion(long version) {
+        // no-op by default
+    }
 }
