@@ -16,12 +16,16 @@
 
 package ir.artanpg.boot.domain.model;
 
+import ir.artanpg.boot.domain.event.AbstractDomainEvent;
+import ir.artanpg.boot.domain.event.DomainEvent;
+import ir.artanpg.boot.domain.event.EventType;
 import ir.artanpg.boot.domain.exception.DomainException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.util.List;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
@@ -106,6 +110,113 @@ class AggregateRootTests {
                     .as("Should throw DomainException when builder is null")
                     .isInstanceOf(DomainException.class)
                     .hasMessage("The builder cannot be null");
+        }
+    }
+
+    @Nested
+    @DisplayName("getDomainEvents")
+    class GetDomainEventsTests {
+
+        @Test
+        void getDomainEvents_ShouldReturnEmptyList_WhenNoEventsRegistered() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+
+            // when
+            List<DomainEvent> events = aggregate.getDomainEvents();
+
+            // then
+            then(events).isEmpty();
+        }
+
+        @Test
+        void getDomainEvents_ShouldReturnRegisteredEvents_WhenEventsExist() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+
+            aggregate.registerEvent(event1);
+            aggregate.registerEvent(event2);
+
+            // when
+            List<DomainEvent> events = aggregate.getDomainEvents();
+
+            // then
+            then(events).hasSize(2);
+            then(events).containsExactly(event1, event2);
+        }
+
+        @Test
+        void getDomainEvents_ShouldReturnDefensiveCopy_WhenCalledMultipleTimes() {
+            // given
+            TestIdentifier testIdentifier = new TestIdentifier("agg-007");
+            TestAggregate aggregate = new TestAggregate(testIdentifier);
+            TestDomainEvent event = new TestDomainEvent(testIdentifier, aggregate);
+
+            // when
+            List<DomainEvent> events1 = aggregate.getDomainEvents();
+            aggregate.registerEvent(event);
+            List<DomainEvent> events2 = aggregate.getDomainEvents();
+
+            // then
+            then(events1).isEmpty();
+            then(events2).hasSize(1);
+            then(events1).isNotSameAs(events2);
+        }
+    }
+
+    @Nested
+    @DisplayName("registerEvent")
+    class RegisterEventTests {
+
+        @Test
+        void registerEvent_ShouldAddEventToList_WhenValidEventProvided() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event = new TestDomainEvent(aggregateId, aggregate);
+
+            // when
+            aggregate.registerEvent(event);
+
+            // then
+            then(aggregate.getDomainEvents()).containsExactly(event);
+        }
+
+        @Test
+        void registerEvent_ShouldMaintainInsertionOrder_WhenMultipleEventsRegistered() {
+            // given
+            TestIdentifier aggregateId = new TestIdentifier(IDENTIFIER_1);
+            TestAggregate aggregate = new TestAggregate(aggregateId);
+
+            TestDomainEvent event1 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event2 = new TestDomainEvent(aggregateId, aggregate);
+            TestDomainEvent event3 = new TestDomainEvent(aggregateId, aggregate);
+
+            // when
+            aggregate.registerEvent(event1);
+            aggregate.registerEvent(event2);
+            aggregate.registerEvent(event3);
+
+            // then
+            then(aggregate.getDomainEvents()).containsExactly(event1, event2, event3);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        void registerEvent_ShouldThrowDomainException_WhenEventIsNull() {
+            // given
+            TestAggregate aggregate = new TestAggregate(new TestIdentifier(IDENTIFIER_1));
+            DomainEvent nullEvent = null;
+
+            // when & then
+            thenThrownBy(() -> aggregate.registerEvent(nullEvent))
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage("The event object cannot be null");
         }
     }
 
@@ -335,6 +446,21 @@ class AggregateRootTests {
         @Override
         public String value() {
             return this.value;
+        }
+    }
+
+    private static class TestDomainEvent extends AbstractDomainEvent<TestIdentifier, TestAggregate> {
+
+        @Serial
+        private static final long serialVersionUID = 502743136739272860L;
+
+        TestDomainEvent(TestIdentifier aggregateId, TestAggregate aggregate) {
+            super(aggregateId, aggregate);
+        }
+
+        @Override
+        public EventType getEventType() {
+            return EventType.valueOf("TEST");
         }
     }
 

@@ -16,9 +16,12 @@
 
 package ir.artanpg.boot.domain.model;
 
+import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.exception.DomainException;
 
 import java.io.Serial;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringJoiner;
 
 /**
@@ -48,6 +51,11 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
     private final I id;
 
     /**
+     * The list of registered domain events.
+     */
+    private final List<DomainEvent> domainEvents = new ArrayList<>();
+
+    /**
      * Constructs a new aggregate root with the specified id.
      *
      * @param id the unique identifier for this aggregate
@@ -73,6 +81,28 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
     @Override
     public I getId() {
         return this.id;
+    }
+
+    @Override
+    public List<DomainEvent> getDomainEvents() {
+        List<DomainEvent> copyOf = List.copyOf(this.domainEvents);
+        this.domainEvents.clear();
+        return copyOf;
+    }
+
+    /**
+     * Registers a domain event for later publication.
+     *
+     * <p>This method should be called by business methods when a significant
+     * domain occurrence happens. The event will be collected and made
+     * available through {@link #getDomainEvents()}.
+     *
+     * @param event the domain event to register
+     * @throws DomainException if the event is {@code null}
+     */
+    protected void registerEvent(DomainEvent event) {
+        if (event == null) throw new DomainException("The event object cannot be null");
+        this.domainEvents.add(event);
     }
 
     @Override

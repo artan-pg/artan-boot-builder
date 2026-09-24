@@ -16,7 +16,10 @@
 
 package ir.artanpg.boot.domain.model;
 
+import ir.artanpg.boot.domain.event.DomainEvent;
+
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * The root entity of an aggregate that controls and enforces business rules
@@ -60,4 +63,16 @@ public interface AggregateRoot<I extends Identifier<?>> extends Serializable {
      * @return the aggregate's unique identifier
      */
     I getId();
+
+    /**
+     * Returns and drains domain events collected during the current
+     * transaction.
+     *
+     * <p>This method returns an immutable snapshot of all domain events
+     * accumulated so far and then clears the internal event list.
+     * Subsequent calls will return an empty list unless new events are added.
+     *
+     * @return an immutable list of collected domain events
+     */
+    List<DomainEvent> getDomainEvents();
 }
