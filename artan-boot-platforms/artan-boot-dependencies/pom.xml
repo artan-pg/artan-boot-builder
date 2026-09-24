@@ -151,6 +151,11 @@
       </dependency>
       <dependency>
         <groupId>ir.artanpg.boot</groupId>
+        <artifactId>artan-boot-application</artifactId>
+        <version>${revision}</version>
+      </dependency>
+      <dependency>
+        <groupId>ir.artanpg.boot</groupId>
         <artifactId>artan-boot-starter</artifactId>
         <version>${revision}</version>
       </dependency>
