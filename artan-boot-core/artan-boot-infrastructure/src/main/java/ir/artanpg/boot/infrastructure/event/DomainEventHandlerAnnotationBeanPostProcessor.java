@@ -17,7 +17,9 @@
 package ir.artanpg.boot.infrastructure.event;
 
 import ir.artanpg.boot.application.annotation.DomainEventHandler;
+import ir.artanpg.boot.application.port.driven.event.DomainEventBus;
 import ir.artanpg.boot.application.port.driven.event.DomainEventMulticaster;
+import ir.artanpg.boot.domain.event.EventTopic;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -35,17 +37,18 @@ import java.util.Objects;
 
 /**
  * {@link BeanPostProcessor} that detects methods annotated with
- * {@link DomainEventHandler} and registers them as listeners with a
- * {@link DomainEventMulticaster}.
+ * {@link DomainEventHandler} and registers them either with the type-based
+ * {@link DomainEventMulticaster} or with the topic-based {@link DomainEventBus}.
  *
- * <p>For each qualifying method a {@link DomainEventHandlerMethodAdapter} is
- * created and added to the multicaster. The processor runs after bean
- * initialization so that the target bean is fully constructed.
+ * <p>When {@link DomainEventHandler#topic()} is empty the adapter is added to
+ * the multicaster. When a topic is specified the adapter is subscribed on the
+ * event bus.
  *
  * @author Mohammad Yazdian
  * @see DomainEventHandler
  * @see DomainEventHandlerMethodAdapter
  * @see DomainEventMulticaster
+ * @see DomainEventBus
  * @since 0.1.0
  */
 public class DomainEventHandlerAnnotationBeanPostProcessor implements BeanPostProcessor {
@@ -54,14 +57,30 @@ public class DomainEventHandlerAnnotationBeanPostProcessor implements BeanPostPr
 
     private final DomainEventMulticaster multicaster;
 
+    @Nullable
+    private final DomainEventBus eventBus;
+
     /**
-     * Creates a new post-processor that registers handlers with the given
-     * multicaster.
+     * Creates a post-processor that supports both type-based and topic-based
+     * registration.
      *
-     * @param multicaster the multicaster to register listeners with; must not be {@code null}
+     * @param multicaster the multicaster for type-based handlers; must not be {@code null}
+     * @param eventBus    the event bus for topic-based handlers; may be {@code null}
+     *                    if topic-based handlers are not used
+     */
+    public DomainEventHandlerAnnotationBeanPostProcessor(@NonNull DomainEventMulticaster multicaster,
+                                                         @Nullable DomainEventBus eventBus) {
+        this.multicaster = Objects.requireNonNull(multicaster, "multicaster must not be null");
+        this.eventBus = eventBus;
+    }
+
+    /**
+     * Creates a post-processor for type-based registration only.
+     *
+     * @param multicaster the multicaster; must not be {@code null}
      */
     public DomainEventHandlerAnnotationBeanPostProcessor(@NonNull DomainEventMulticaster multicaster) {
-        this.multicaster = Objects.requireNonNull(multicaster, "multicaster must not be null");
+        this(multicaster, null);
     }
 
     @Override
@@ -77,9 +96,23 @@ public class DomainEventHandlerAnnotationBeanPostProcessor implements BeanPostPr
 
         for (Method method : handlerMethods) {
             DomainEventHandlerMethodAdapter adapter = new DomainEventHandlerMethodAdapter(bean, method);
-            this.multicaster.addDomainEventListener(adapter);
-            log.debug("Registered @DomainEventHandler method [{}] on bean [{}] as listener [{}]",
-                    method.toGenericString(), beanName, adapter.getListenerId());
+
+            if (adapter.isTopicBased()) {
+                EventTopic topic = adapter.getTopic().orElseThrow();
+                if (this.eventBus == null) {
+                    throw new IllegalStateException(
+                            "@DomainEventHandler on " + method + " specifies topic [" + topic.getName()
+                                    + "] but no DomainEventBus is available");
+                }
+                this.eventBus.subscribe(topic, adapter, adapter.getOrder());
+                log.debug("Registered @DomainEventHandler method [{}] on bean [{}] to topic [{}]",
+                        method.toGenericString(), beanName, topic.getName());
+            }
+            else {
+                this.multicaster.addDomainEventListener(adapter);
+                log.debug("Registered @DomainEventHandler method [{}] on bean [{}] as type-based listener [{}]",
+                        method.toGenericString(), beanName, adapter.getListenerId());
+            }
         }
 
         return bean;

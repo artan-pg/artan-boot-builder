@@ -19,6 +19,7 @@ package ir.artanpg.boot.infrastructure.event;
 import ir.artanpg.boot.application.annotation.DomainEventHandler;
 import ir.artanpg.boot.application.port.driven.event.DomainEventSmartListener;
 import ir.artanpg.boot.domain.event.DomainEvent;
+import ir.artanpg.boot.domain.event.EventTopic;
 import ir.artanpg.boot.domain.exception.DomainException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -27,6 +28,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,12 +36,9 @@ import java.util.stream.Collectors;
  * Adapter that turns a method annotated with {@link DomainEventHandler} into a
  * {@link DomainEventSmartListener}.
  *
- * <p>The adapter is responsible for:
- * <ul>
- *   <li>Determining which event types the method supports</li>
- *   <li>Invoking the target method when a matching event is received</li>
- *   <li>Propagating the order and async flag from the annotation</li>
- * </ul>
+ * <p>When the annotation specifies a non-empty {@link DomainEventHandler#topic()},
+ * {@link #getTopic()} returns the corresponding {@link EventTopic} so that the
+ * registration infrastructure can subscribe the adapter on the event bus.
  *
  * @author Mohammad Yazdian
  * @see DomainEventHandler
@@ -59,6 +58,9 @@ public class DomainEventHandlerMethodAdapter implements DomainEventSmartListener
     private final boolean async;
 
     private final String listenerId;
+
+    @Nullable
+    private final EventTopic topic;
 
     /**
      * Creates a new adapter for the given bean and annotated method.
@@ -99,7 +101,9 @@ public class DomainEventHandlerMethodAdapter implements DomainEventSmartListener
         this.async = annotation.async();
         this.listenerId = bean.getClass().getName() + "#" + method.getName();
 
-        // Ensure the method is accessible (e.g. for package-private methods)
+        String topicName = annotation.topic();
+        this.topic = (topicName == null || topicName.isBlank()) ? null : EventTopic.of(topicName);
+
         this.method.setAccessible(true);
     }
 
@@ -146,19 +150,27 @@ public class DomainEventHandlerMethodAdapter implements DomainEventSmartListener
     }
 
     /**
-     * Returns the target bean that owns the handler method.
+     * Returns the topic this handler is bound to, if any.
      *
-     * @return the bean instance
+     * @return the topic, or empty when the handler is type-based only
      */
+    public Optional<EventTopic> getTopic() {
+        return Optional.ofNullable(this.topic);
+    }
+
+    /**
+     * Returns whether this handler is topic-based.
+     *
+     * @return {@code true} if a topic was specified on the annotation
+     */
+    public boolean isTopicBased() {
+        return this.topic != null;
+    }
+
     public Object getBean() {
         return this.bean;
     }
 
-    /**
-     * Returns the handler method.
-     *
-     * @return the method
-     */
     public Method getMethod() {
         return this.method;
     }
@@ -169,6 +181,7 @@ public class DomainEventHandlerMethodAdapter implements DomainEventSmartListener
                 "listenerId='" + this.listenerId + '\'' +
                 ", order=" + this.order +
                 ", async=" + this.async +
+                ", topic=" + this.topic +
                 "]";
     }
 }
