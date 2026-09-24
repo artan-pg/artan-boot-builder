@@ -21,28 +21,28 @@ import ir.artanpg.boot.application.port.driven.event.DomainEventListener;
 import ir.artanpg.boot.application.port.driven.event.DomainEventSmartListener;
 import ir.artanpg.boot.application.port.driven.event.ListenerExceptionHandler;
 import ir.artanpg.boot.domain.event.DomainEvent;
-import ir.artanpg.boot.infrastructure.event.support.AnotherTestDomainEvent;
 import ir.artanpg.boot.infrastructure.event.support.TestDomainEvent;
 import ir.artanpg.boot.infrastructure.event.support.TestIdentifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.never;
-import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Unit tests for {@link SimpleDomainEventMulticaster}.
@@ -87,8 +87,8 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(listener1).should().process(event);
-        then(listener2).should().process(event);
+        verify(listener1).process(event);
+        verify(listener2).process(event);
     }
 
     @Test
@@ -140,7 +140,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(smartListener).should(never()).process(any());
+        verifyNoInteractions(smartListener);
     }
 
     @Test
@@ -154,7 +154,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(smartListener).should().process(event);
+        verify(smartListener).process(event);
     }
 
     @Test
@@ -169,7 +169,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(smartListener).should(never()).process(any());
+        verify(smartListener, never()).process(any());
     }
 
     @Test
@@ -182,11 +182,11 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        var inOrder = inOrder(interceptor, listener1);
+        InOrder inOrder = inOrder(interceptor, listener1);
         inOrder.verify(interceptor).beforeHandle(event, listener1);
         inOrder.verify(listener1).process(event);
         inOrder.verify(interceptor).afterHandle(event, listener1);
-        then(interceptor).should(never()).onError(any(), any(), any());
+        verify(interceptor, never()).onError(any(), any(), any());
     }
 
     @Test
@@ -194,7 +194,7 @@ class SimpleDomainEventMulticasterTests {
         // given
         RuntimeException failure = new RuntimeException("boom");
         given(listener1.exceptionHandler()).willReturn(exceptionHandler);
-        org.mockito.BDDMockito.willThrow(failure).given(listener1).process(event);
+        willThrow(failure).given(listener1).process(event);
 
         multicaster.addDomainEventListener(listener1);
         multicaster.addInterceptor(interceptor);
@@ -203,10 +203,10 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(interceptor).should().beforeHandle(event, listener1);
-        then(interceptor).should().onError(event, listener1, failure);
-        then(interceptor).should(never()).afterHandle(any(), any());
-        then(exceptionHandler).should().handleError(failure, event);
+        verify(interceptor).beforeHandle(event, listener1);
+        verify(interceptor).onError(event, listener1, failure);
+        verify(interceptor, never()).afterHandle(any(), any());
+        verify(exceptionHandler).handleError(failure, event);
     }
 
     @Test
@@ -244,7 +244,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(listener1).should(never()).process(any());
+        verify(listener1, never()).process(any());
     }
 
     @Test
@@ -258,8 +258,8 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(listener1).should(never()).process(any());
-        then(listener2).should(never()).process(any());
+        verify(listener1, never()).process(any());
+        verify(listener2, never()).process(any());
     }
 
     @Test
@@ -281,7 +281,7 @@ class SimpleDomainEventMulticasterTests {
         multicaster.multicastEvent(event);
 
         // then
-        then(interceptor).should(never()).beforeHandle(any(), any());
-        then(interceptor).should(never()).afterHandle(any(), any());
+        verify(interceptor, never()).beforeHandle(any(), any());
+        verify(interceptor, never()).afterHandle(any(), any());
     }
 }

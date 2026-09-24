@@ -26,7 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
-import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.verify;
 
 /**
  * Unit tests for {@link SimpleDomainEventPublisher}.
@@ -58,7 +58,7 @@ class SimpleDomainEventPublisherTests {
         publisher.publish(event);
 
         // then
-        then(multicaster).should().multicastEvent(event);
+        verify(multicaster).multicastEvent(event);
     }
 
     @Test

@@ -17,7 +17,6 @@
 package ir.artanpg.boot.infrastructure.event;
 
 import ir.artanpg.boot.application.port.driven.event.DomainEventPublisher;
-import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.infrastructure.event.support.TestAggregateRoot;
 import ir.artanpg.boot.infrastructure.event.support.TestDomainEvent;
 import ir.artanpg.boot.infrastructure.event.support.TestIdentifier;
@@ -29,8 +28,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Unit tests for {@link AggregateDomainEventPublisher}.
@@ -63,8 +62,8 @@ class AggregateDomainEventPublisherTests {
         aggregatePublisher.publishEventsFrom(aggregate);
 
         // then
-        then(publisher).should().publish(event1);
-        then(publisher).should().publish(event2);
+        verify(publisher).publish(event1);
+        verify(publisher).publish(event2);
         // getDomainEvents() clears the collection
         then(aggregate.getDomainEvents()).isEmpty();
     }
@@ -78,7 +77,7 @@ class AggregateDomainEventPublisherTests {
         aggregatePublisher.publishEventsFrom(aggregate);
 
         // then
-        then(publisher).shouldHaveNoInteractions();
+        verifyNoInteractions(publisher);
     }
 
     @Test
