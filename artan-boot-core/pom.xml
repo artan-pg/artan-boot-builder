@@ -21,5 +21,6 @@
   <modules>
     <module>artan-boot-domain</module>
     <module>artan-boot-application</module>
+    <module>artan-boot-infrastructure</module>
   </modules>
 </project>
