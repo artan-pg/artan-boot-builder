@@ -16,6 +16,7 @@
 
 package ir.artanpg.boot.application.port.driven.repository;
 
+import ir.artanpg.boot.domain.transaction.LockMode;
 import ir.artanpg.boot.domain.exception.DomainException;
 import ir.artanpg.boot.domain.model.AggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
@@ -51,6 +52,16 @@ public interface QueryRepository<T extends AggregateRoot<I>, I extends Identifie
      * @throws DomainException if the identifier is {@code null}
      */
     Optional<T> findById(@NonNull I identifier);
+
+    /**
+     * Retrieves an aggregate by its identifier using a specific
+     * lock mode.
+     *
+     * @param identifier the unique identifier of the aggregate
+     * @param lockMode   the lock mode to use for the retrieval
+     * @return Optional of the aggregate, or {@code empty} if not found
+     */
+    Optional<T> findById(I identifier, LockMode lockMode);
 
     /**
      * Retrieves aggregates by a collection of identifiers.

@@ -16,6 +16,8 @@
 
 package ir.artanpg.boot.domain.exception;
 
+import ir.artanpg.boot.domain.transaction.exception.TransactionException;
+
 import java.io.Serial;
 
 /**
@@ -30,6 +32,7 @@ import java.io.Serial;
  * @see UseCaseException
  * @see BusinessValidationException
  * @see DomainEventException
+ * @see TransactionException
  * @since 0.1.0
  */
 public class DomainException extends RuntimeException {
