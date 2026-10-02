@@ -26,12 +26,15 @@ import java.util.List;
  * Driven port that encapsulates domain event publication.
  *
  * <p>Implementations may deliver events synchronously to in-process listeners
- * or asynchronously to a message broker. Callers must only invoke this port
- * <strong>after</strong> the surrounding business transaction has committed
- * successfully.
+ * or asynchronously to a message broker. The canonical in-process
+ * implementation delegates to a {@link DomainEventMulticaster}, which performs
+ * listener resolution, ordering, filtering and error isolation. Callers must
+ * only invoke this port <strong>after</strong> the surrounding business
+ * transaction has committed successfully.
  *
  * @author Mohammad Yazdian
  * @see DomainEvent
+ * @see DomainEventMulticaster
  * @since 0.1.0
  */
 @FunctionalInterface
