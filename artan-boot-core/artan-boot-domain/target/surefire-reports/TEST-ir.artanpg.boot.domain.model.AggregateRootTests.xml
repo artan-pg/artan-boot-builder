@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="ir.artanpg.boot.domain.model.AggregateRootTests" time="0.724" tests="31" errors="0" skipped="0" failures="0" flakes="0">
+  <properties>
+    <property name="java.specification.version" value="21"/>
+    <property name="sun.jnu.encoding" value="UTF-8"/>
+    <property name="java.class.path" value="/workspace/artan-boot-core/artan-boot-domain/target/test-classes:/workspace/artan-boot-core/artan-boot-domain/target/classes:/root/.m2/repository/org/jspecify/jspecify/1.0.1/jspecify-1.0.1.jar:/root/.m2/repository/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar:/workspace/artan-boot-starters/artan-boot-starter-test/target/classes:/root/.m2/repository/org/junit/jupiter/junit-jupiter-api/6.0.3/junit-jupiter-api-6.0.3.jar:/root/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/root/.m2/repository/org/junit/platform/junit-platform-commons/6.0.3/junit-platform-commons-6.0.3.jar:/root/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/root/.m2/repository/org/junit/jupiter/junit-jupiter-engine/6.0.3/junit-jupiter-engine-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-engine/6.0.3/junit-platform-engine-6.0.3.jar:/root/.m2/repository/org/junit/jupiter/junit-jupiter-params/6.0.3/junit-jupiter-params-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-console/6.0.3/junit-platform-console-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-reporting/6.0.3/junit-platform-reporting-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-launcher/6.0.3/junit-platform-launcher-6.0.3.jar:/root/.m2/repository/org/opentest4j/reporting/open-test-reporting-tooling-spi/0.2.4/open-test-reporting-tooling-spi-0.2.4.jar:/root/.m2/repository/org/assertj/assertj-core/3.27.7/assertj-core-3.27.7.jar:/root/.m2/repository/net/bytebuddy/byte-buddy/1.17.8/byte-buddy-1.17.8.jar:/root/.m2/repository/org/mockito/mockito-junit-jupiter/5.20.0/mockito-junit-jupiter-5.20.0.jar:/root/.m2/repository/org/mockito/mockito-core/5.20.0/mockito-core-5.20.0.jar:/root/.m2/repository/net/bytebuddy/byte-buddy-agent/1.17.8/byte-buddy-agent-1.17.8.jar:/root/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/root/.m2/repository/org/awaitility/awaitility/4.3.0/awaitility-4.3.0.jar:/root/.m2/repository/org/hamcrest/hamcrest/3.0/hamcrest-3.0.jar:"/>
+    <property name="java.vm.vendor" value="Eclipse Adoptium"/>
+    <property name="sun.arch.data.model" value="64"/>
+    <property name="java.vendor.url" value="https://adoptium.net/"/>
+    <property name="os.name" value="Linux"/>
+    <property name="java.vm.specification.version" value="21"/>
+    <property name="sun.java.launcher" value="SUN_STANDARD"/>
+    <property name="sun.boot.library.path" value="/tmp/jdk-21.0.12.1+1/lib"/>
+    <property name="sun.java.command" value="/workspace/artan-boot-core/artan-boot-domain/target/surefire/surefirebooter-20261004012326033_3.jar /workspace/artan-boot-core/artan-boot-domain/target/surefire 2026-10-04T01-23-17_838-jvmRun1 surefire-20261004012326033_1tmp surefire_0-20261004012326033_2tmp"/>
+    <property name="jdk.debug" value="release"/>
+    <property name="test" value="AggregateRootTests"/>
+    <property name="surefire.test.class.path" value="/workspace/artan-boot-core/artan-boot-domain/target/test-classes:/workspace/artan-boot-core/artan-boot-domain/target/classes:/root/.m2/repository/org/jspecify/jspecify/1.0.1/jspecify-1.0.1.jar:/root/.m2/repository/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar:/workspace/artan-boot-starters/artan-boot-starter-test/target/classes:/root/.m2/repository/org/junit/jupiter/junit-jupiter-api/6.0.3/junit-jupiter-api-6.0.3.jar:/root/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/root/.m2/repository/org/junit/platform/junit-platform-commons/6.0.3/junit-platform-commons-6.0.3.jar:/root/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/root/.m2/repository/org/junit/jupiter/junit-jupiter-engine/6.0.3/junit-jupiter-engine-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-engine/6.0.3/junit-platform-engine-6.0.3.jar:/root/.m2/repository/org/junit/jupiter/junit-jupiter-params/6.0.3/junit-jupiter-params-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-console/6.0.3/junit-platform-console-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-reporting/6.0.3/junit-platform-reporting-6.0.3.jar:/root/.m2/repository/org/junit/platform/junit-platform-launcher/6.0.3/junit-platform-launcher-6.0.3.jar:/root/.m2/repository/org/opentest4j/reporting/open-test-reporting-tooling-spi/0.2.4/open-test-reporting-tooling-spi-0.2.4.jar:/root/.m2/repository/org/assertj/assertj-core/3.27.7/assertj-core-3.27.7.jar:/root/.m2/repository/net/bytebuddy/byte-buddy/1.17.8/byte-buddy-1.17.8.jar:/root/.m2/repository/org/mockito/mockito-junit-jupiter/5.20.0/mockito-junit-jupiter-5.20.0.jar:/root/.m2/repository/org/mockito/mockito-core/5.20.0/mockito-core-5.20.0.jar:/root/.m2/repository/net/bytebuddy/byte-buddy-agent/1.17.8/byte-buddy-agent-1.17.8.jar:/root/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/root/.m2/repository/org/awaitility/awaitility/4.3.0/awaitility-4.3.0.jar:/root/.m2/repository/org/hamcrest/hamcrest/3.0/hamcrest-3.0.jar:"/>
+    <property name="sun.cpu.endian" value="little"/>
+    <property name="user.home" value="/root"/>
+    <property name="user.language" value="en"/>
+    <property name="java.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.version.date" value="2026-08-18"/>
+    <property name="java.home" value="/tmp/jdk-21.0.12.1+1"/>
+    <property name="file.separator" value="/"/>
+    <property name="basedir" value="/workspace/artan-boot-core/artan-boot-domain"/>
+    <property name="java.vm.compressedOopsMode" value="32-bit"/>
+    <property name="line.separator" value="&#10;"/>
+    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.specification.name" value="Java Platform API Specification"/>
+    <property name="surefire.real.class.path" value="/workspace/artan-boot-core/artan-boot-domain/target/surefire/surefirebooter-20261004012326033_3.jar"/>
+    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
+    <property name="java.runtime.version" value="21.0.12.1+1-LTS"/>
+    <property name="user.name" value="root"/>
+    <property name="stdout.encoding" value="UTF-8"/>
+    <property name="path.separator" value=":"/>
+    <property name="os.version" value="5.10.134-013.15.kangaroo.al8.x86_64"/>
+    <property name="java.runtime.name" value="OpenJDK Runtime Environment"/>
+    <property name="file.encoding" value="UTF-8"/>
+    <property name="surefire.failIfNoSpecifiedTests" value="false"/>
+    <property name="java.vm.name" value="OpenJDK 64-Bit Server VM"/>
+    <property name="java.vendor.version" value="Temurin-21.0.12.1+1"/>
+    <property name="localRepository" value="/root/.m2/repository"/>
+    <property name="java.vendor.url.bug" value="https://github.com/adoptium/adoptium-support/issues"/>
+    <property name="java.io.tmpdir" value="/tmp"/>
+    <property name="java.version" value="21.0.12.1"/>
+    <property name="maven.test.skip" value="false"/>
+    <property name="user.dir" value="/workspace/artan-boot-core/artan-boot-domain"/>
+    <property name="os.arch" value="amd64"/>
+    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="failIfNoTests" value="false"/>
+    <property name="native.encoding" value="UTF-8"/>
+    <property name="java.library.path" value="/usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib"/>
+    <property name="java.vm.info" value="mixed mode, sharing"/>
+    <property name="stderr.encoding" value="UTF-8"/>
+    <property name="java.vendor" value="Eclipse Adoptium"/>
+    <property name="java.vm.version" value="21.0.12.1+1-LTS"/>
+    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
+    <property name="java.class.version" value="65.0"/>
+  </properties>
+  <testcase name="toString_ShouldReturnStringRepresentation_WhenCalled" classname="toString" time="0.168"/>
+  <testcase name="builder_ShouldSupportMethodChaining_WhenCalled" classname="AbstractBuilder" time="0.02"/>
+  <testcase name="builder_ShouldThrowDomainException_WhenIdentifierIsNull" classname="AbstractBuilder" time="0.005"/>
+  <testcase name="builder_ShouldSetIdentifier_WhenProvided" classname="AbstractBuilder" time="0.06"/>
+  <testcase name="registerEvent_ShouldAddEventToList_WhenValidEventProvided" classname="registerEvent" time="0.029"/>
+  <testcase name="registerEvent_ShouldMaintainInsertionOrder_WhenMultipleEventsRegistered" classname="registerEvent" time="0.055"/>
+  <testcase name="registerEvent_ShouldThrowDomainException_WhenEventIsNull" classname="registerEvent" time="0.005"/>
+  <testcase name="constructor_ShouldSetId_WhenValidIdentifierIsProvided" classname="Constructor with Identifier" time="0.003"/>
+  <testcase name="constructor_ShouldThrowDomainException_WhenIdIsNull" classname="Constructor with Identifier" time="0.004"/>
+  <testcase name="equals_ShouldReturnFalse_WhenComparingWithDifferentObjectType" classname="equals and hashCode" time="0.003"/>
+  <testcase name="equals_ShouldReturnFalse_WhenComparingAggregatesWithDifferentIds" classname="equals and hashCode" time="0.055"/>
+  <testcase name="hashCode_ShouldReturnDifferentHashCode_ForAggregatesWithDifferentIds" classname="equals and hashCode" time="0.003"/>
+  <testcase name="hashCode_ShouldReturnSameHashCode_ForEqualAggregates" classname="equals and hashCode" time="0.001"/>
+  <testcase name="equals_ShouldReturnTrue_WhenComparingAggregateWithItself" classname="equals and hashCode" time="0.001"/>
+  <testcase name="equals_ShouldReturnFalse_WhenComparingWithNull" classname="equals and hashCode" time="0.003"/>
+  <testcase name="equals_ShouldReturnFalse_WhenComparingAggregatesWithSameIdButDifferentClasses" classname="equals and hashCode" time="0.001"/>
+  <testcase name="equals_ShouldReturnTrue_WhenComparingAggregatesWithSameIdAndSameClass" classname="equals and hashCode" time="0.003"/>
+  <testcase name="pullDomainEvents_ShouldReturnEmptyList_WhenNoEventsRegistered" classname="pullDomainEvents" time="0.003"/>
+  <testcase name="pullDomainEvents_ShouldReturnUnmodifiableList_WhenCalled" classname="pullDomainEvents" time="0.002"/>
+  <testcase name="pullDomainEvents_ShouldReturnAndDrainEvents_WhenEventsExist" classname="pullDomainEvents" time="0.001"/>
+  <testcase name="pullDomainEvents_ShouldReturnEmptyList_WhenCalledTwiceConsecutively" classname="pullDomainEvents" time="0.0"/>
+  <testcase name="pullDomainEvents_ShouldReturnImmutableSnapshot_WhenNewEventsRegisteredAfterwards" classname="pullDomainEvents" time="0.054"/>
+  <testcase name="clearDomainEvents_ShouldDoNothing_WhenNoEventsRegistered" classname="clearDomainEvents" time="0.003"/>
+  <testcase name="clearDomainEvents_ShouldRemoveAllEvents_WhenEventsExist" classname="clearDomainEvents" time="0.001"/>
+  <testcase name="clearDomainEvents_ShouldAllowNewRegistrations_AfterBeingCalled" classname="clearDomainEvents" time="0.002"/>
+  <testcase name="constructor_ShouldSetIdFromBuilder_WhenValidBuilderIsProvided" classname="Constructor with Builder" time="0.003"/>
+  <testcase name="constructor_ShouldThrowDomainException_WhenBuilderIsNull" classname="Constructor with Builder" time="0.002"/>
+  <testcase name="peekDomainEvents_ShouldReturnRegisteredEventsWithoutRemoving_WhenEventsExist" classname="peekDomainEvents" time="0.003"/>
+  <testcase name="peekDomainEvents_ShouldReturnEmptyList_WhenNoEventsRegistered" classname="peekDomainEvents" time="0.002"/>
+  <testcase name="peekDomainEvents_ShouldReturnUnmodifiableView_WhenCalled" classname="peekDomainEvents" time="0.003"/>
+  <testcase name="peekDomainEvents_ShouldReflectNewlyRegisteredEvents_WhenCalledAfterRegistration" classname="peekDomainEvents" time="0.001"/>
+</testsuite>

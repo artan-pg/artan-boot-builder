@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @FunctionalInterface
-public interface DomainEventListener<T extends DomainEvent> {
+public interface DomainEventListener<T extends DomainEvent<?, ?>> {
 
     /**
      * Processes the given event.

@@ -41,7 +41,7 @@ public interface ListenerExceptionHandler {
      * @param exception the exception thrown during event processing
      * @param event     the domain event being processed when the exception occurred
      */
-    void handleError(Exception exception, DomainEvent event);
+    void handleError(Exception exception, DomainEvent<?, ?> event);
 
     /**
      * Returns a composed {@link ListenerExceptionHandler} that performs, in

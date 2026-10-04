@@ -51,7 +51,7 @@ public interface DomainEventInterceptor {
      * @param event      the domain event about to be processed
      * @param listenerId the listener identifier that will process the event
      */
-    default void beforeHandle(@NonNull DomainEvent event, @NonNull String listenerId) {
+    default void beforeHandle(@NonNull DomainEvent<?, ?> event, @NonNull String listenerId) {
     }
 
     /**
@@ -64,7 +64,7 @@ public interface DomainEventInterceptor {
      * @param event      the domain event that was processed
      * @param listenerId the listener identifier that will process the event
      */
-    default void afterHandle(@NonNull DomainEvent event, @NonNull String listenerId) {
+    default void afterHandle(@NonNull DomainEvent<?, ?> event, @NonNull String listenerId) {
     }
 
     /**
@@ -77,7 +77,7 @@ public interface DomainEventInterceptor {
      * @param listenerId the listener identifier that will process the event
      * @param exception  the exception that was thrown
      */
-    default void onError(@NonNull DomainEvent event,
+    default void onError(@NonNull DomainEvent<?, ?> event,
                          @NonNull String listenerId,
                          @NonNull Exception exception) {
     }
