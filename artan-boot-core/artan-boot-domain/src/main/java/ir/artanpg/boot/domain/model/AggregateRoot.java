@@ -65,14 +65,37 @@ public interface AggregateRoot<I extends Identifier<?>> extends Serializable {
     I getId();
 
     /**
-     * Returns and drains domain events collected during the current
-     * transaction.
+     * Returns a read-only view of the domain events collected so far,
+     * <em>without</em> removing them from the aggregate.
+     *
+     * <p>This method follows the Command-Query Separation (CQS) principle:
+     * it is a pure query with no side effects. Useful for inspection,
+     * validation, and testing while the events remain registered.
+     *
+     * @return an unmodifiable view of the currently registered domain events
+     */
+    List<DomainEvent<?, ?>> peekDomainEvents();
+
+    /**
+     * Removes all domain events currently registered on this aggregate.
+     *
+     * <p>This command performs no return value; it only resets the internal
+     * event list. Typically used when the collected events must be discarded
+     * (for example, after a failed transaction that will not publish them).
+     */
+    void clearDomainEvents();
+
+    /**
+     * Atomically returns and drains the domain events collected during the
+     * current transaction.
      *
      * <p>This method returns an immutable snapshot of all domain events
-     * accumulated so far and then clears the internal event list.
-     * Subsequent calls will return an empty list unless new events are added.
+     * accumulated so far and then clears the internal event list, so
+     * subsequent calls will return an empty list unless new events are added.
+     * It is the standard way to hand collected events over to an event
+     * publisher exactly once.
      *
-     * @return an immutable list of collected domain events
+     * @return an immutable list of the collected domain events
      */
-    List<DomainEvent> getDomainEvents();
+    List<DomainEvent<?, ?>> pullDomainEvents();
 }

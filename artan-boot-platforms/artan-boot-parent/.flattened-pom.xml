@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>ir.artanpg.boot</groupId>
+    <artifactId>artan-boot-dependencies</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../artan-boot-dependencies</relativePath>
+  </parent>
+  <groupId>ir.artanpg.boot</groupId>
+  <artifactId>artan-boot-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>artan-boot-parent</name>
+  <description>Parent module for all modules in this project.</description>
+  <url>https://artanpg.ir/artan-boot-parent</url>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Mohammad Yazdian</name>
+      <email>m.yazdian70@outlook.com</email>
+      <roles>
+        <role>Programmer</role>
+      </roles>
+      <timezone>+3:30</timezone>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/artan-pg/artan-boot-builder.git/artan-boot-dependencies/artan-boot-parent</connection>
+    <developerConnection>scm:git:https://github.com/artan-pg/artan-boot-builder.git/artan-boot-dependencies/artan-boot-parent</developerConnection>
+    <tag>0.1.0-SNAPSHOT</tag>
+    <url>https://github.com/artan-pg/artan-boot-builder/artan-boot-dependencies/artan-boot-parent</url>
+  </scm>
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/artan-pg/artan-boot-builder/issues</url>
+  </issueManagement>
+</project>

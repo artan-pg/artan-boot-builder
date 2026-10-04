@@ -24,6 +24,9 @@
 
     <jacoco.haltOnFailure>false</jacoco.haltOnFailure>
     <jacoco.includes>ir/artanpg/boot/domain/**</jacoco.includes>
+    <jacoco.excludes>
+      ir/artanpg/boot/domain/transaction/LockMode**
+    </jacoco.excludes>
   </properties>
 
   <dependencies>

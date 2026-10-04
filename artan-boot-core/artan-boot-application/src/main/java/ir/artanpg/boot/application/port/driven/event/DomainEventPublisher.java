@@ -43,7 +43,7 @@ public interface DomainEventPublisher {
      * @param event the event to publish
      * @throws DomainEventException if the event is {@code null} or publication fails fatally
      */
-    void publish(@NonNull DomainEvent event);
+    void publish(@NonNull DomainEvent<?, ?> event);
 
     /**
      * Publishes all events in order.
@@ -52,10 +52,10 @@ public interface DomainEventPublisher {
      * @throws DomainEventException if the events list is {@code null} or publication fails fatally
      */
     @SuppressWarnings("ConstantValue")
-    default void publishAll(@NonNull List<DomainEvent> events) {
+    default void publishAll(@NonNull List<? extends DomainEvent<?, ?>> events) {
         if (events == null) throw new DomainEventException("events must not be null");
 
-        for (DomainEvent event : events) {
+        for (DomainEvent<?, ?> event : events) {
             publish(event);
         }
     }

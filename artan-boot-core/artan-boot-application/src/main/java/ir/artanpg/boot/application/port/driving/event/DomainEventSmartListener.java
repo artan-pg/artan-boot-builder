@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  * @see DomainEventListener
  * @since 0.1.0
  */
-public interface DomainEventSmartListener<T extends DomainEvent> extends DomainEventListener<T> {
+public interface DomainEventSmartListener<T extends DomainEvent<?, ?>> extends DomainEventListener<T> {
 
     /**
      * Determines whether this listener supports the given semantic event type.
@@ -79,7 +79,7 @@ public interface DomainEventSmartListener<T extends DomainEvent> extends DomainE
      * @return a predicate filter, or {@code null} for no content filtering
      */
     @Nullable
-    default Predicate<DomainEvent> getFilter() {
+    default Predicate<DomainEvent<?, ?>> getFilter() {
         return null;
     }
 

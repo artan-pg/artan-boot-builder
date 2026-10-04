@@ -19,7 +19,8 @@ package ir.artanpg.boot.domain.event;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.domain.model.ValueObject;
 
-import java.io.Serializable;
+import org.jspecify.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
@@ -29,10 +30,11 @@ import java.util.Objects;
  * Represents a significant occurrence within the domain that is of interest
  * to the business and may trigger side effects.
  *
- * <p>Implementations must be immutable and must override
- * {@link Object#equals(Object)} and {@link Object#hashCode()} based on the
- * {@link #getEventId()} to ensure correct behavior in event stores and
- * deduplication mechanisms.
+ * <p>Implementations must be immutable and must provide a consistent
+ * {@link Object#equals(Object)}/{@link Object#hashCode()} contract so that
+ * events behave correctly inside sets, maps and event stores. Note that for
+ * <em>deduplication</em> purposes the identity of an event is its
+ * {@link #getEventId()} alone — see {@link AbstractDomainEvent#isSameEventAs(DomainEvent)}.
  *
  * <p>Domain events are a fundamental building block of DDD that enable:
  * <ul>
@@ -55,11 +57,14 @@ import java.util.Objects;
  * Domain events should be named using the past tense of a verb that
  * describes the occurrence.
  *
+ * @param <I> the type of the identifier of the aggregate that originated this event
+ * @param <T> the type of the event payload (a plain immutable domain data carrier;
+ *            serialization is an infrastructure concern handled by {@code EventSerializer})
  * @author Mohammad Yazdian
  * @see EventType
  * @since 0.1.0
  */
-public interface DomainEvent extends ValueObject {
+public interface DomainEvent<I extends Identifier<?>, T> extends ValueObject {
 
     /**
      * Returns the unique identifier of this domain event instance.
@@ -100,22 +105,25 @@ public interface DomainEvent extends ValueObject {
      * Returns the unique identifier of the aggregate root that originated this
      * domain event.
      *
-     * @param <I> the type of the identifier
      * @return the aggregate identifier
      */
-    <I extends Identifier<?>> I getAggregateId();
+    I getAggregateId();
 
     /**
      * Returns the payload containing the data associated with this domain
      * event.
      *
-     * <p>The payload must be {@link Serializable} to allow the event to be
-     * persisted to an event store or transmitted over a message broker.
+     * <p>The payload is a plain immutable data carrier. It is intentionally
+     * <em>not</em> required to be {@code Serializable}: persisting or
+     * transmitting an event is an infrastructure concern, and concrete
+     * serializers (JSON, Avro, Protobuf, ...) are provided by the
+     * {@code EventSerializer}/{@code EventDeserializer} ports in the
+     * application layer. This keeps the domain model free of JVM-specific
+     * serialization constraints and deserialization security risks.
      *
-     * @param <T> the type of the payload
      * @return the event payload
      */
-    <T extends Serializable> T getPayload();
+    T getPayload();
 
     /**
      * Returns the metadata associated with this domain event.
@@ -123,19 +131,57 @@ public interface DomainEvent extends ValueObject {
      * <p>Metadata can include cross-cutting information such as correlation
      * IDs, causation IDs, user context, or tracing information.
      *
-     * @return a map of metadata key-value pairs.
+     * <p>The returned map is expected to be unmodifiable; implementations
+     * that support mutation should expose dedicated setters (e.g.
+     * {@code setMetadataValue}) rather than a mutable view of internal state.
+     *
+     * @return an unmodifiable map of metadata key-value pairs; never {@code null}
      */
-    default Map<String, Object> getMetaData() {
+    default Map<String, Object> getMetadata() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Returns the metadata previously stored under the given key, or
+     * {@code null} if no such key exists.
+     *
+     * <p>Convenience accessor so callers do not have to navigate the raw map.
+     *
+     * @param key the metadata key; may be {@code null}, in which case
+     *            {@code null} is returned
+     * @return the metadata value, or {@code null} when absent
+     */
+    default @Nullable Object getMetadataValue(@Nullable String key) {
+        if (key == null) return null;
+        return getMetadata().get(key);
+    }
+
+    /**
+     * Checks whether this event carries a metadata entry for the given key.
+     *
+     * @param key the metadata key to look up; may be {@code null}
+     * @return {@code true} if a value is present for the key, {@code false} otherwise
+     */
+    default boolean hasMetadata(@Nullable String key) {
+        if (key == null) return false;
+        return getMetadata().containsKey(key);
     }
 
     /**
      * Checks if this event is of the specified {@link EventType}.
      *
-     * @param type the event type to compare against
-     * @return {@code true} if this event's type matches the specified type, {@code false} otherwise
+     * <p>The comparison is performed on the event type <b>names</b>, so it is
+     * independent of how either {@code EventType} instance was created
+     * (cached via {@link EventType#valueOf(String)}, a lambda, or a custom
+     * implementation).
+     *
+     * @param type the event type to compare against; may be {@code null}
+     * @return {@code true} if this event's type has the same name as the
+     *         specified type, {@code false} otherwise
      */
-    default boolean isOfType(EventType type) {
-        return Objects.equals(getEventType(), type);
+    default boolean isOfType(@Nullable EventType type) {
+        if (type == null) return false;
+        EventType own = getEventType();
+        return own != null && Objects.equals(own.getName(), type.getName());
     }
 }

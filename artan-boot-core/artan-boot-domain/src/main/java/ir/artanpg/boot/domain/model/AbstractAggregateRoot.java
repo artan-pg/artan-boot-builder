@@ -21,6 +21,7 @@ import ir.artanpg.boot.domain.exception.DomainException;
 
 import java.io.Serial;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 
@@ -53,7 +54,7 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
     /**
      * The list of registered domain events.
      */
-    private final List<DomainEvent> domainEvents = new ArrayList<>();
+    private final List<DomainEvent<?, ?>> domainEvents = new ArrayList<>();
 
     /**
      * Constructs a new aggregate root with the specified id.
@@ -83,9 +84,28 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
         return this.id;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public List<DomainEvent> getDomainEvents() {
-        List<DomainEvent> copyOf = List.copyOf(this.domainEvents);
+    public List<DomainEvent<?, ?>> peekDomainEvents() {
+        return Collections.unmodifiableList(this.domainEvents);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void clearDomainEvents() {
+        this.domainEvents.clear();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<DomainEvent<?, ?>> pullDomainEvents() {
+        List<DomainEvent<?, ?>> copyOf = List.copyOf(this.domainEvents);
         this.domainEvents.clear();
         return copyOf;
     }
@@ -95,12 +115,13 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
      *
      * <p>This method should be called by business methods when a significant
      * domain occurrence happens. The event will be collected and made
-     * available through {@link #getDomainEvents()}.
+     * available through {@link #peekDomainEvents()}, {@link #pullDomainEvents()}
+     * or drained via {@link #clearDomainEvents()}.
      *
      * @param event the domain event to register
      * @throws DomainException if the event is {@code null}
      */
-    protected void registerEvent(DomainEvent event) {
+    protected void registerEvent(DomainEvent<?, ?> event) {
         if (event == null) throw new DomainException("The event object cannot be null");
         this.domainEvents.add(event);
     }
