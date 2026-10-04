@@ -57,16 +57,20 @@ import org.jspecify.annotations.NonNull;
  *
  * @author Mohammad Yazdian
  * @see EventSerializer
- * @see EventSerializer
  * @since 0.1.0
  */
 public interface EventDeserializer {
 
     /**
-     * Deserializes the given representation into a domain event of the
+     * Deserializes the given byte representation into a domain event of the
      * expected type.
      *
-     * @param data the serialized event representation produced by a matching
+     * <p>Mirrors {@link EventSerializer#serialize(DomainEvent)}: the input is
+     * the raw byte output produced by a matching serializer, which avoids any
+     * implicit charset guessing for text-based formats (the codec itself owns
+     * the encoding, e.g. UTF-8 for JSON).
+     *
+     * @param data the serialized event bytes produced by a matching
      *             {@link EventSerializer}; must not be {@code null}
      * @param type the expected concrete event class; must not be {@code null}.
      *             Passing the target type explicitly keeps the operation safe
@@ -76,7 +80,7 @@ public interface EventDeserializer {
      * @throws RuntimeException if {@code data} is malformed, does not match
      *         {@code type}, or misses mandatory fields
      */
-    <E extends DomainEvent<?, ?>> @NonNull E deserialize(@NonNull String data, @NonNull Class<E> type);
+    <E extends DomainEvent<?, ?>> @NonNull E deserialize(@NonNull byte[] data, @NonNull Class<E> type);
 
     /**
      * Returns the wire format consumed by this deserializer.

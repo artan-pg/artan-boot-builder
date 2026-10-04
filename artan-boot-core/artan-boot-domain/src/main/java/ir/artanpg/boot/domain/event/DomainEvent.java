@@ -170,10 +170,18 @@ public interface DomainEvent<I extends Identifier<?>, T> extends ValueObject {
     /**
      * Checks if this event is of the specified {@link EventType}.
      *
-     * @param type the event type to compare against
-     * @return {@code true} if this event's type matches the specified type, {@code false} otherwise
+     * <p>The comparison is performed on the event type <b>names</b>, so it is
+     * independent of how either {@code EventType} instance was created
+     * (cached via {@link EventType#valueOf(String)}, a lambda, or a custom
+     * implementation).
+     *
+     * @param type the event type to compare against; may be {@code null}
+     * @return {@code true} if this event's type has the same name as the
+     *         specified type, {@code false} otherwise
      */
-    default boolean isOfType(EventType type) {
-        return Objects.equals(getEventType(), type);
+    default boolean isOfType(@Nullable EventType type) {
+        if (type == null) return false;
+        EventType own = getEventType();
+        return own != null && Objects.equals(own.getName(), type.getName());
     }
 }

@@ -62,20 +62,26 @@ import org.jspecify.annotations.NonNull;
 public interface EventSerializer {
 
     /**
-     * Serializes the given domain event into its external representation.
+     * Serializes the given domain event into its external byte-oriented
+     * representation.
      *
-     * <p>The returned string is expected to be a complete, self-describing
-     * document: it should contain the event envelope (eventId, eventType,
+     * <p>The returned bytes are expected to be a complete, self-describing
+     * document: they should contain the event envelope (eventId, eventType,
      * occurredAt, aggregateId, metadata) as well as the payload, so that
-     * {@link EventDeserializer#deserialize(String, Class)} can rebuild the
+     * {@link EventDeserializer#deserialize(byte[], Class)} can rebuild the
      * event without extra context.
      *
+     * <p>Bytes are the natural output for binary codecs (Avro, Protobuf, CBOR)
+     * and for message brokers / JDBC BLOB columns. Text-based formats such as
+     * JSON simply return their UTF-8 encoded bytes; callers who need a string
+     * can do {@code new String(bytes, StandardCharsets.UTF_8)}.
+     *
      * @param event the domain event to serialize; must not be {@code null}
-     * @return the serialized representation of the event
+     * @return the serialized representation of the event as a non-null byte array
      * @throws RuntimeException if the event cannot be serialized
      *         (unsupported payload type, circular reference, ...)
      */
-    String serialize(@NonNull DomainEvent<?, ?> event);
+    byte[] serialize(@NonNull DomainEvent<?, ?> event);
 
     /**
      * Returns the identifier of the wire format produced by this serializer.

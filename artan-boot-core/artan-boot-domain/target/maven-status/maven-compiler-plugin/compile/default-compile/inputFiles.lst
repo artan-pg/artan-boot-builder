@@ -6,6 +6,7 @@
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/event/AbstractDomainEvent.java
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/event/DomainEvent.java
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/event/EventType.java
+/workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/event/EventTypeRegistry.java
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/event/PayloadRedactionPolicy.java
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/exception/BusinessValidationException.java
 /workspace/artan-boot-core/artan-boot-domain/src/main/java/ir/artanpg/boot/domain/exception/DomainEventException.java
