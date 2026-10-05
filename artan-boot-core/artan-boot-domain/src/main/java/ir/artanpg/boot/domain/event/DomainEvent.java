@@ -20,8 +20,6 @@ import ir.artanpg.boot.domain.model.Identifier;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -53,6 +51,7 @@ import java.util.Objects;
  * @param <P> the type of the event payload (a plain immutable domain data carrier)
  * @author Mohammad Yazdian
  * @see EventType
+ * @see EventMetadata
  * @since 0.1.0
  */
 public interface DomainEvent<I extends Identifier<?>, P> {
@@ -109,45 +108,18 @@ public interface DomainEvent<I extends Identifier<?>, P> {
     P getPayload();
 
     /**
-     * Returns the metadata associated with this domain event.
+     * Returns the type-safe metadata associated with this domain event.
      *
-     * <p>Metadata can include cross-cutting information such as correlation
-     * IDs, causation IDs, user context, or tracing information.
+     * <p>Metadata carries cross-cutting information such as correlation
+     * ids, causation ids, tenant, tracing context, and user context.
      *
-     * <p>The returned map is expected to be unmodifiable; implementations
-     * that support mutation should expose dedicated setters (e.g.
-     * {@code setMetadataValue}) rather than a mutable view of internal state.
+     * <p>The returned instance is immutable. Implementations must never
+     * expose a mutable view of internal state.
      *
-     * @return an unmodifiable map of metadata key-value pairs; never {@code null}
+     * @return the event metadata
      */
-    default Map<String, Object> getMetadata() {
-        return Collections.emptyMap();
-    }
-
-    /**
-     * Returns the metadata previously stored under the given key, or
-     * {@code null} if no such key exists.
-     *
-     * <p>Convenience accessor so callers do not have to navigate the raw map.
-     *
-     * @param key the metadata key; may be {@code null}, in which case
-     *            {@code null} is returned
-     * @return the metadata value, or {@code null} when absent
-     */
-    default @Nullable Object getMetadataValue(@Nullable String key) {
-        if (key == null) return null;
-        return getMetadata().get(key);
-    }
-
-    /**
-     * Checks whether this event carries a metadata entry for the given key.
-     *
-     * @param key the metadata key to look up; may be {@code null}
-     * @return {@code true} if a value is present for the key, {@code false} otherwise
-     */
-    default boolean hasMetadata(@Nullable String key) {
-        if (key == null) return false;
-        return getMetadata().containsKey(key);
+    default EventMetadata getMetadata() {
+        return EventMetadata.empty();
     }
 
     /**

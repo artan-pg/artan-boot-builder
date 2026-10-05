@@ -24,9 +24,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
@@ -45,9 +42,9 @@ import java.util.StringJoiner;
  * and never changes afterward:
  * <ul>
  *   <li>Every field is {@code final}; there are no setters.</li>
- *   <li>{@code metadata} is stored in an unmodifiable defensive copy, so
- *       {@link #getMetadata()} returns a stable snapshot that is safe to share
- *       across threads without synchronization.</li>
+ *   <li>{@code metadata} is an immutable {@link EventMetadata} snapshot, so
+ *       {@link #getMetadata()} is safe to share across threads without
+ *       synchronization.</li>
  *   <li>The only mutation surface left is subclass payload state; payloads are
  *       expected to be plain immutable data carriers (records preferred).</li>
  * </ul>
@@ -62,28 +59,6 @@ import java.util.StringJoiner;
  * @version 0.1.0
  */
 public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements DomainEvent<I, P> {
-
-    /**
-     * Metadata key carrying the identifier of the request/message that
-     * originated the command which produced this event.
-     */
-    public static final String CORRELATION_ID_KEY = "correlationId";
-
-    /**
-     * Metadata key carrying the {@code eventId} of the event that causally
-     * produced this event.
-     */
-    public static final String CAUSATION_ID_KEY = "causationId";
-
-    /**
-     * Metadata key carrying the tenant this event belongs to.
-     */
-    public static final String TENANT_KEY = "tenant";
-
-    /**
-     * Exception message for null or blank metadata keys.
-     */
-    private static final String METADATA_KEY_EXCEPTION_MSG = "The metadata key cannot be null or blank";
 
     /**
      * The unique identifier for this event.
@@ -108,12 +83,11 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
     /**
      * Cross-cutting metadata (correlation id, causation id, tenant, ...).
      *
-     * <p>Captured as an unmodifiable defensive copy at construction time;
-     * deliberately NOT part of equals/hashCode, because metadata does not
-     * change the identity of the domain fact. Being immutable, it requires no
-     * synchronization and its snapshot stays identical to what was published.
+     * <p>Captured as an immutable {@link EventMetadata} at construction
+     * time; deliberately NOT part of equals/hashCode, because metadata
+     * does not change the identity of the domain fact.
      */
-    private final Map<String, Object> metadata;
+    private final EventMetadata metadata;
 
     /**
      * Constructs a new domain event with the default clock and ID
@@ -161,15 +135,14 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      * @param payload     the event payload
      * @param clock       the clock to use for the timestamp
      * @param idGenerator the generator for the event ID
-     * @param metadata    the cross-cutting metadata map
-     * @throws DomainEventException if aggregateId or payload is {@code null}, the generated ID is {@code blank},
-     *                              or a metadata key is invalid
+     * @param metadata    the cross-cutting metadata; {@code null} is treated as {@link EventMetadata#empty()}
+     * @throws DomainEventException if aggregateId or payload is {@code null}, or the generated ID is {@code blank}
      */
     protected AbstractDomainEvent(@NonNull I aggregateId,
                                   @NonNull P payload,
                                   @Nullable Clock clock,
                                   @Nullable IdGenerator idGenerator,
-                                  @Nullable Map<String, Object> metadata) {
+                                  @Nullable EventMetadata metadata) {
         if (aggregateId == null) throw new DomainEventException("The aggregateId cannot be null");
         if (payload == null) throw new DomainEventException("The payload cannot be null");
 
@@ -182,28 +155,7 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         this.occurredAt = (clock != null) ? clock.instant() : Instant.now();
         this.aggregateId = aggregateId;
         this.payload = payload;
-        this.metadata = immutableMetadataCopy(metadata);
-    }
-
-    /**
-     * Creates an unmodifiable defensive copy of the given metadata.
-     *
-     * @param source the source metadata map
-     * @return an unmodifiable map, or an empty map if source is null
-     * @throws DomainEventException if a metadata key is {@code null} or {@code blank}
-     */
-    private static Map<String, Object> immutableMetadataCopy(@Nullable Map<String, Object> source) {
-        if (source == null || source.isEmpty()) return Collections.emptyMap();
-        Map<String, Object> copy = LinkedHashMap.newLinkedHashMap(source.size());
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = entry.getKey();
-            if (key == null || key.isBlank()) {
-                throw new DomainEventException(METADATA_KEY_EXCEPTION_MSG);
-            }
-            if (entry.getValue() != null) copy.put(key, entry.getValue());
-        }
-        if (copy.isEmpty()) return Collections.emptyMap();
-        return Collections.unmodifiableMap(new LinkedHashMap<>(copy));
+        this.metadata = (metadata != null) ? metadata : EventMetadata.empty();
     }
 
     @Override
@@ -243,7 +195,7 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
     }
 
     @Override
-    public Map<String, Object> getMetadata() {
+    public EventMetadata getMetadata() {
         return this.metadata;
     }
 

@@ -26,8 +26,6 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Collections;
-import java.util.Map;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
@@ -60,6 +58,7 @@ class DomainEventTests {
             then(event.getPayload()).isEqualTo(payload);
             then(event.getEventId()).isNotBlank();
             then(event.getOccurredAt()).isNotNull();
+            then(event.getMetadata()).isEqualTo(EventMetadata.empty());
         }
 
         @Test
@@ -148,7 +147,6 @@ class DomainEventTests {
             then(event.getEventId()).isNotBlank();
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("Constructor should throw DomainEventException when generated event id is null")
         void constructor_ShouldThrowDomainEventException_WhenGeneratedEventIdIsNull() {
@@ -211,7 +209,6 @@ class DomainEventTests {
             // then
             then(result).isNotNull();
             then(result.getName()).isEqualTo("TestEvent");
-            // Interning guarantee: same call resolves to the very same cached instance.
             then(event.eventType()).isSameAs(result);
             then(EventTypeRegistry.shared().valueOfName("TestEvent")).isSameAs(result);
         }
@@ -222,136 +219,58 @@ class DomainEventTests {
     class MetadataTests {
 
         @Test
-        @DisplayName("metadata should return empty map when no metadata")
-        void metadata_ShouldReturnEmptyMap_WhenNoMetadata() {
+        @DisplayName("metadata should return empty when no metadata")
+        void getMetadata_ShouldReturnEmpty_WhenNoMetadataProvided() {
             // given
             TestEvent event = new TestEvent(mock(Identifier.class), "payload");
 
             // when
-            Map<String, Object> result = event.getMetadata();
+            EventMetadata result = event.getMetadata();
 
             // then
-            then(result).isEmpty();
+            then(result).isEqualTo(EventMetadata.empty());
+            then(result.isEmpty()).isTrue();
         }
 
         @Test
-        @DisplayName("metadata should return unmodifiable map when metadata exists")
-        void metadata_ShouldReturnUnmodifiableMap_WhenMetadataExists() {
+        @DisplayName("getMetadata_ShouldReturnProvidedMetadata_WhenMetadataExists")
+        void getMetadata_ShouldReturnProvidedMetadata_WhenMetadataExists() {
             // given
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", Map.of("key", "value"));
+            EventMetadata metadata = EventMetadata.builder()
+                    .correlationId("corr-1")
+                    .tenant("tenant-a")
+                    .properties("region", "eu")
+                    .build();
 
             // when
-            Map<String, Object> result = event.getMetadata();
+            TestEvent event = new TestEvent(mock(Identifier.class), "payload", metadata);
 
             // then
-            then(result).containsEntry("key", "value");
-            thenThrownBy(() -> result.put("newKey", "newValue")).isInstanceOf(UnsupportedOperationException.class);
+            then(event.getMetadata()).isEqualTo(metadata);
+            then(event.getMetadata().getCorrelationId()).isEqualTo("corr-1");
+            then(event.getMetadata().getTenant()).isEqualTo("tenant-a");
+            then(event.getMetadata().getProperty("region")).isEqualTo("eu");
         }
 
         @Test
-        @DisplayName("metadata should not leak changes made to the source map after construction")
-        void metadata_ShouldNotLeakSourceMapChanges_AfterConstruction() {
+        @DisplayName("getMetadata_ShouldTreatNullMetadataAsEmpty")
+        void getMetadata_ShouldTreatNullMetadataAsEmpty() {
             // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put("key", "value");
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", source);
-
-            // when
-            source.put("lateKey", "lateValue");
-
-            // then
-            then(event.getMetadata()).containsEntry("key", "value").doesNotContainKey("lateKey");
-        }
-
-        @Test
-        @DisplayName("constructor should drop null metadata values and keep non-null ones")
-        void constructor_ShouldDropNullMetadataValues() {
-            // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put("key", "value");
-            source.put("nullKey", null);
-
-            // when
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", source);
-
-            // then
-            then(event.getMetadata()).containsEntry("key", "value").doesNotContainKey("nullKey");
-        }
-
-        @Test
-        @DisplayName("constructor should return empty map when source is empty (not null)")
-        void constructor_ShouldReturnEmptyMap_WhenSourceIsEmpty() {
-            // given
-            Map<String, Object> emptySource = Collections.emptyMap();
-
-            // when
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", emptySource);
-
-            // then
-            then(event.getMetadata()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("constructor should throw DomainEventException when a metadata key is null")
-        void constructor_ShouldThrowDomainEventException_WhenMetadataKeyIsNull() {
-            // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put(null, "value");
+            TestEvent event = new TestEvent(mock(Identifier.class), "payload", null, null, null);
 
             // when & then
-            thenThrownBy(() -> new TestEvent(mock(Identifier.class), "payload", source))
-                    .isInstanceOf(DomainEventException.class)
-                    .hasMessage("The metadata key cannot be null or blank");
+            then(event.getMetadata()).isEqualTo(EventMetadata.empty());
         }
 
         @Test
-        @DisplayName("constructor should return empty map when all metadata values are null")
-        void constructor_ShouldReturnEmptyMap_WhenAllMetadataValuesAreNull() {
+        @DisplayName("getMetadata_ShouldReturnSameInstance_WhenNotMutated")
+        void getMetadata_ShouldReturnSameInstance_WhenNotMutated() {
             // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put("key1", null);
-            source.put("key2", null);
-            source.put("key3", null);
-
-            // when
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", source);
-
-            // then
-            then(event.getMetadata()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("constructor should keep non-null values and drop null values when mixed")
-        void constructor_ShouldKeepNonNullValuesAndDropNullValues_WhenMixed() {
-            // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put("keep1", "value1");
-            source.put("drop1", null);
-            source.put("keep2", 42);
-            source.put("drop2", null);
-
-            // when
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", source);
-
-            // then
-            then(event.getMetadata()).hasSize(2);
-            then(event.getMetadata()).containsEntry("keep1", "value1");
-            then(event.getMetadata()).containsEntry("keep2", 42);
-            then(event.getMetadata()).doesNotContainKey("drop1");
-            then(event.getMetadata()).doesNotContainKey("drop2");
-        }
-
-        @Test
-        @DisplayName("constructor should throw DomainEventException when a metadata key is blank")
-        void constructor_ShouldThrowDomainEventException_WhenMetadataKeyIsBlank() {
-            // given
-            Map<String, Object> source = new java.util.HashMap<>();
-            source.put("  ", "value");
+            EventMetadata metadata = EventMetadata.builder().userId("user-1").build();
+            TestEvent event = new TestEvent(mock(Identifier.class), "payload", metadata);
 
             // when & then
-            thenThrownBy(() -> new TestEvent(mock(Identifier.class), "payload", source))
-                    .isInstanceOf(DomainEventException.class)
-                    .hasMessage("The metadata key cannot be null or blank");
+            then(event.getMetadata()).isSameAs(metadata);
         }
     }
 
@@ -725,170 +644,21 @@ class DomainEventTests {
     }
 
     @Nested
-    @DisplayName("getMetadata")
-    class GetMetadataTests {
+    @DisplayName("getMetadata default")
+    class GetMetadataDefaultTests {
 
         @Test
-        @DisplayName("getMetadata should return an empty map when not overridden")
-        void getMetadata_ShouldReturnEmptyMap_WhenNotOverridden() {
+        @DisplayName("getMetadata should return an empty when not overridden")
+        void getMetadata_ShouldReturnEmpty_WhenNotOverridden() {
             // given
             DomainEvent<Identifier<?>, String> event = new DefaultMetadataEvent();
 
             // when
-            Map<String, Object> metadata = event.getMetadata();
+            EventMetadata metadata = event.getMetadata();
 
             // then
-            then(metadata).isEmpty();
-        }
-    }
-
-    @Nested
-    @DisplayName("getMetadataValue")
-    class GetMetadataValueTests {
-
-        @Test
-        @DisplayName("getMetadataValue should return null when key is null")
-        void getMetadataValue_ShouldReturnNull_WhenKeyIsNull() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            Object result = event.getMetadataValue(null);
-
-            // then
-            then(result).isNull();
-        }
-
-        @Test
-        @DisplayName("getMetadataValue should return null when key is empty string")
-        void getMetadataValue_ShouldReturnNull_WhenKeyIsEmpty() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            Object result = event.getMetadataValue("");
-
-            // then
-            then(result).isNull();
-        }
-
-        @Test
-        @DisplayName("getMetadataValue should return null when key is blank string")
-        void getMetadataValue_ShouldReturnNull_WhenKeyIsBlank() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            Object result = event.getMetadataValue("   ");
-
-            // then
-            then(result).isNull();
-        }
-
-        @Test
-        @DisplayName("getMetadataValue should return the value when key exists in metadata")
-        void getMetadataValue_ShouldReturnValue_WhenKeyExists() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            Object result = event.getMetadataValue("key");
-
-            // then
-            then(result).isEqualTo("value");
-        }
-
-        @Test
-        @DisplayName("getMetadataValue should return null when key does not exist in metadata")
-        void getMetadataValue_ShouldReturnNull_WhenKeyDoesNotExist() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            Object result = event.getMetadataValue("nonexistent");
-
-            // then
-            then(result).isNull();
-        }
-    }
-
-    @Nested
-    @DisplayName("hasMetadata")
-    class HasMetadataTests {
-
-        @Test
-        @DisplayName("hasMetadata should return false when key is null")
-        void hasMetadata_ShouldReturnFalse_WhenKeyIsNull() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            boolean result = event.hasMetadata(null);
-
-            // then
-            then(result).isFalse();
-        }
-
-        @Test
-        @DisplayName("hasMetadata should return false when key is empty string")
-        void hasMetadata_ShouldReturnFalse_WhenKeyIsEmpty() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            boolean result = event.hasMetadata("");
-
-            // then
-            then(result).isFalse();
-        }
-
-        @Test
-        @DisplayName("hasMetadata should return false when key is blank string")
-        void hasMetadata_ShouldReturnFalse_WhenKeyIsBlank() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            boolean result = event.hasMetadata("   ");
-
-            // then
-            then(result).isFalse();
-        }
-
-        @Test
-        @DisplayName("hasMetadata should return true when key exists in metadata")
-        void hasMetadata_ShouldReturnTrue_WhenKeyExists() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            boolean result = event.hasMetadata("key");
-
-            // then
-            then(result).isTrue();
-        }
-
-        @Test
-        @DisplayName("hasMetadata should return false when key does not exist in metadata")
-        void hasMetadata_ShouldReturnFalse_WhenKeyDoesNotExist() {
-            // given
-            Map<String, Object> metadata = Map.of("key", "value");
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, metadata);
-
-            // when
-            boolean result = event.hasMetadata("nonexistent");
-
-            // then
-            then(result).isFalse();
+            then(metadata).isEqualTo(EventMetadata.empty());
+            then(metadata.isEmpty()).isTrue();
         }
     }
 
@@ -900,8 +670,8 @@ class DomainEventTests {
         @DisplayName("isOfType should return false when the provided type is null")
         void isOfType_ShouldReturnFalse_WhenTypeIsNull() {
             // given
-            EventType ownType = mock(EventType.class);
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event =
+                    new TestDomainEvent(mock(EventType.class), EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(null);
@@ -915,7 +685,7 @@ class DomainEventTests {
         void isOfType_ShouldReturnFalse_WhenOwnEventTypeIsNull() {
             // given
             EventType otherType = mock(EventType.class);
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(null, EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(otherType);
@@ -934,7 +704,7 @@ class DomainEventTests {
             EventType otherType = mock(EventType.class);
             given(otherType.getName()).willReturn("TEST_EVENT");
 
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(otherType);
@@ -953,7 +723,7 @@ class DomainEventTests {
             EventType otherType = mock(EventType.class);
             given(otherType.getName()).willReturn("TEST_EVENT_2");
 
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(otherType);
@@ -962,7 +732,6 @@ class DomainEventTests {
             then(result).isFalse();
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("isOfType should return true when both event type names are null")
         void isOfType_ShouldReturnTrue_WhenBothNamesAreNull() {
@@ -973,7 +742,7 @@ class DomainEventTests {
             EventType otherType = mock(EventType.class);
             given(otherType.getName()).willReturn(null);
 
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(otherType);
@@ -982,7 +751,6 @@ class DomainEventTests {
             then(result).isTrue();
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("isOfType should return false when own name is null and other name is not null")
         void isOfType_ShouldReturnFalse_WhenOwnNameIsNullAndOtherNameIsNotNull() {
@@ -993,7 +761,7 @@ class DomainEventTests {
             EventType otherType = mock(EventType.class);
             given(otherType.getName()).willReturn("TEST_EVENT");
 
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, Collections.emptyMap());
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
             // when
             boolean result = event.isOfType(otherType);
@@ -1037,7 +805,7 @@ class DomainEventTests {
     /**
      * Dummy implementation to test default methods with configurable event type and metadata.
      */
-    private record TestDomainEvent(EventType eventType, Map<String, Object> metadata)
+    private record TestDomainEvent(EventType eventType, EventMetadata metadata)
             implements DomainEvent<Identifier<?>, String> {
 
         @Override
@@ -1061,7 +829,7 @@ class DomainEventTests {
         }
 
         @Override
-        public Map<String, Object> getMetadata() {
+        public EventMetadata getMetadata() {
             return metadata;
         }
     }
@@ -1083,12 +851,15 @@ class DomainEventTests {
             super(aggregateId, payload, clock, idGenerator);
         }
 
-        TestEvent(Identifier<?> aggregateId, String payload, Map<String, Object> metadata) {
+        TestEvent(Identifier<?> aggregateId, String payload, EventMetadata metadata) {
             super(aggregateId, payload, null, null, metadata);
         }
 
-        TestEvent(Identifier<?> aggregateId, String payload, Clock clock,
-                  IdGenerator idGenerator, Map<String, Object> metadata) {
+        TestEvent(Identifier<?> aggregateId,
+                  String payload,
+                  Clock clock,
+                  IdGenerator idGenerator,
+                  EventMetadata metadata) {
             super(aggregateId, payload, clock, idGenerator, metadata);
         }
 
