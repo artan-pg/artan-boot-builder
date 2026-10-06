@@ -19,7 +19,6 @@ package ir.artanpg.boot.domain.model;
 import ir.artanpg.boot.domain.event.AbstractDomainEvent;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.event.EventTypeRegistry;
 import ir.artanpg.boot.domain.exception.DomainException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -644,12 +643,7 @@ class AggregateRootTests {
     private static class TestDomainEvent extends AbstractDomainEvent<TestIdentifier, TestAggregate> {
 
         TestDomainEvent(TestIdentifier aggregateId, TestAggregate aggregate) {
-            super(aggregateId, aggregate);
-        }
-
-        @Override
-        public EventType eventType() {
-            return EventTypeRegistry.valueOf("TEST");
+            super(aggregateId, aggregate, EventType.of("TestDomainEvent"));
         }
     }
 

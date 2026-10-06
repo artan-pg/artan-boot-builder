@@ -80,6 +80,8 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      */
     private final I aggregateId;
 
+    private final EventType eventType;
+
     /**
      * Cross-cutting metadata (correlation id, causation id, tenant, ...).
      *
@@ -95,9 +97,10 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      *
      * @param aggregateId the identifier of the aggregate
      * @param payload     the event payload
+     * @param eventType   the event type
      */
-    protected AbstractDomainEvent(@NonNull I aggregateId, @NonNull P payload) {
-        this(aggregateId, payload, null, null, null);
+    protected AbstractDomainEvent(@NonNull I aggregateId, @NonNull P payload, @NonNull EventType eventType) {
+        this(aggregateId, payload, eventType, null, null, null);
     }
 
     /**
@@ -105,10 +108,14 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      *
      * @param aggregateId the identifier of the aggregate
      * @param payload     the event payload
+     * @param eventType   the event type
      * @param clock       the clock to use for the timestamp
      */
-    protected AbstractDomainEvent(@NonNull I aggregateId, @NonNull P payload, @Nullable Clock clock) {
-        this(aggregateId, payload, clock, null, null);
+    protected AbstractDomainEvent(@NonNull I aggregateId,
+                                  @NonNull P payload,
+                                  @NonNull EventType eventType,
+                                  @Nullable Clock clock) {
+        this(aggregateId, payload, eventType, clock, null, null);
     }
 
     /**
@@ -117,14 +124,16 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      *
      * @param aggregateId the identifier of the aggregate
      * @param payload     the event payload
+     * @param eventType   the event type
      * @param clock       the clock to use for the timestamp
      * @param idGenerator the generator for the event ID
      */
     protected AbstractDomainEvent(@NonNull I aggregateId,
                                   @NonNull P payload,
+                                  @NonNull EventType eventType,
                                   @Nullable Clock clock,
                                   @Nullable IdGenerator idGenerator) {
-        this(aggregateId, payload, clock, idGenerator, null);
+        this(aggregateId, payload, eventType, clock, idGenerator, null);
     }
 
     /**
@@ -133,6 +142,7 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      *
      * @param aggregateId the identifier of the aggregate
      * @param payload     the event payload
+     * @param eventType   the event type
      * @param clock       the clock to use for the timestamp
      * @param idGenerator the generator for the event ID
      * @param metadata    the cross-cutting metadata; {@code null} is treated as {@link EventMetadata#empty()}
@@ -140,11 +150,13 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
      */
     protected AbstractDomainEvent(@NonNull I aggregateId,
                                   @NonNull P payload,
+                                  @NonNull EventType eventType,
                                   @Nullable Clock clock,
                                   @Nullable IdGenerator idGenerator,
                                   @Nullable EventMetadata metadata) {
         if (aggregateId == null) throw new DomainEventException("The aggregateId cannot be null");
         if (payload == null) throw new DomainEventException("The payload cannot be null");
+        if (eventType == null) throw new DomainEventException("The eventType cannot be null");
 
         IdGenerator generator = (idGenerator != null) ? idGenerator : IdGenerator.uuid();
         this.eventId = generator.nextId();
@@ -155,6 +167,7 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         this.occurredAt = (clock != null) ? clock.instant() : Instant.now();
         this.aggregateId = aggregateId;
         this.payload = payload;
+        this.eventType = eventType;
         this.metadata = (metadata != null) ? metadata : EventMetadata.empty();
     }
 
@@ -163,20 +176,9 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         return this.eventId;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The wire identity of the event type is derived from the
-     * concrete class name and interned through the shared registry.
-     */
     @Override
-    public EventType eventType() {
-        // The wire identity of the event type is derived from the concrete
-        // class name, but it is INTERNED through the shared registry so that
-        // every instance of the same event class resolves to the very same
-        // canonical EventType object (stable equals/hashCode across JVM-wide
-        // lookups and safe for strict-mode validation).
-        return EventTypeRegistry.shared().valueOfName(getClass().getSimpleName());
+    public EventType getEventType() {
+        return this.eventType;
     }
 
     @Override
@@ -251,12 +253,13 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         return Objects.equals(eventId, that.eventId) &&
                 Objects.equals(occurredAt, that.occurredAt) &&
                 Objects.equals(payload, that.payload) &&
-                Objects.equals(aggregateId, that.aggregateId);
+                Objects.equals(aggregateId, that.aggregateId) &&
+                Objects.equals(eventType, that.eventType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), eventId, occurredAt, aggregateId, payload);
+        return Objects.hash(getClass(), eventId, occurredAt, aggregateId, payload, eventType);
     }
 
     @Override
@@ -264,6 +267,7 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         return new StringJoiner(", ", getClass().getSimpleName() + "[", "]")
                 .add("eventId='" + eventId + "'")
                 .add("occurredAt=" + occurredAt)
+                .add("eventType='" + eventType + "'")
                 .add("payload=" + redactionPolicy().redact(getPayload()))
                 .add("aggregateId=" + aggregateId)
                 .toString();

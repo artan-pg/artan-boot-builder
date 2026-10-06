@@ -86,6 +86,18 @@ class DomainEventTests {
         }
 
         @Test
+        @DisplayName("Constructor should throw DomainEventException when eventType is null")
+        void constructor_ShouldThrowDomainEventException_WhenEventTypeIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+
+            // when & then
+            thenThrownBy(() -> new TestEvent(aggregateId))
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The eventType cannot be null");
+        }
+
+        @Test
         @DisplayName("Constructor should use provided clock when clock is not null")
         void constructor_ShouldUseProvidedClock_WhenClockIsNotNull() {
             // given
@@ -194,27 +206,6 @@ class DomainEventTests {
     }
 
     @Nested
-    @DisplayName("eventType")
-    class EventTypeTests {
-
-        @Test
-        @DisplayName("eventType should return a canonical type interned through the shared registry")
-        void eventType_ShouldReturnCanonicalTypeFromSharedRegistry() {
-            // given
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload");
-
-            // when
-            EventType result = event.eventType();
-
-            // then
-            then(result).isNotNull();
-            then(result.getName()).isEqualTo("TestEvent");
-            then(event.eventType()).isSameAs(result);
-            then(EventTypeRegistry.shared().valueOfName("TestEvent")).isSameAs(result);
-        }
-    }
-
-    @Nested
     @DisplayName("metadata")
     class MetadataTests {
 
@@ -256,7 +247,7 @@ class DomainEventTests {
         @DisplayName("getMetadata_ShouldTreatNullMetadataAsEmpty")
         void getMetadata_ShouldTreatNullMetadataAsEmpty() {
             // given
-            TestEvent event = new TestEvent(mock(Identifier.class), "payload", null, null, null);
+            TestEvent event = new TestEvent(mock(Identifier.class), "payload", null, null, (EventMetadata) null);
 
             // when & then
             then(event.getMetadata()).isEqualTo(EventMetadata.empty());
@@ -271,6 +262,25 @@ class DomainEventTests {
 
             // when & then
             then(event.getMetadata()).isSameAs(metadata);
+        }
+    }
+
+    @Nested
+    @DisplayName("getEventType")
+    class GetEventType {
+
+        @Test
+        @DisplayName("should return event type from constructor")
+        void getEventType_ShouldReturnEventType_WhenCalled() {
+            // given
+            EventType eventType = EventType.of("EVENT-TYPE-NAME");
+            OtherTestEvent event = new OtherTestEvent(eventType);
+
+            // when
+            EventType result = event.getEventType();
+
+            // then
+            then(result).isEqualTo(eventType);
         }
     }
 
@@ -394,13 +404,14 @@ class DomainEventTests {
         void equals_ShouldReturnTrue_WhenAllFieldsAreEqual() {
             // given
             Identifier<?> aggregateId = mock(Identifier.class);
+            EventType eventType = EventType.of("EVENT-TYPE-NAME");
             Instant occurredAt = Instant.now();
             Clock clock = Clock.fixed(occurredAt, ZoneId.of("UTC"));
             IdGenerator idGenerator = mock(IdGenerator.class);
             given(idGenerator.nextId()).willReturn("same-id");
 
-            TestEvent event1 = new TestEvent(aggregateId, "payload", clock, idGenerator);
-            TestEvent event2 = new TestEvent(aggregateId, "payload", clock, idGenerator);
+            TestEvent event1 = new TestEvent(aggregateId, "payload", eventType, clock, idGenerator);
+            TestEvent event2 = new TestEvent(aggregateId, "payload", eventType, clock, idGenerator);
 
             // when
             boolean result = event1.equals(event2);
@@ -487,17 +498,44 @@ class DomainEventTests {
         }
 
         @Test
+        @DisplayName("equals should return false when event type differs")
+        void equals_ShouldReturnFalse_WhenEventTypeDiffers() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            EventType eventType1 = EventType.of("EVENT-TYPE-NAME-1");
+            EventType eventType2 = EventType.of("EVENT-TYPE-NAME-2");
+
+            Instant occurredAt = Instant.now();
+            Clock clock = Clock.fixed(occurredAt, ZoneId.of("UTC"));
+
+            IdGenerator idGenerator = mock(IdGenerator.class);
+            given(idGenerator.nextId()).willReturn("same-id");
+
+            TestEvent event1 = new TestEvent(aggregateId, "payload", eventType1, clock, idGenerator);
+            TestEvent event2 = new TestEvent(aggregateId, "payload", eventType2, clock, idGenerator);
+
+            // when
+            boolean result = event1.equals(event2);
+
+            // then
+            then(result).isFalse();
+        }
+
+        @Test
         @DisplayName("hashCode should return same hash when objects are equal")
         void hashCode_ShouldReturnSameHash_WhenObjectsAreEqual() {
             // given
             Identifier<?> aggregateId = mock(Identifier.class);
+            EventType eventType = EventType.of("EVENT-TYPE-NAME-1");
+
             Instant occurredAt = Instant.now();
             Clock clock = Clock.fixed(occurredAt, ZoneId.of("UTC"));
+
             IdGenerator idGenerator = mock(IdGenerator.class);
             given(idGenerator.nextId()).willReturn("same-id");
 
-            TestEvent event1 = new TestEvent(aggregateId, "payload", clock, idGenerator);
-            TestEvent event2 = new TestEvent(aggregateId, "payload", clock, idGenerator);
+            TestEvent event1 = new TestEvent(aggregateId, "payload", eventType, clock, idGenerator);
+            TestEvent event2 = new TestEvent(aggregateId, "payload", eventType, clock, idGenerator);
 
             // when
             int hash1 = event1.hashCode();
@@ -644,8 +682,8 @@ class DomainEventTests {
     }
 
     @Nested
-    @DisplayName("getMetadata default")
-    class GetMetadataDefaultTests {
+    @DisplayName("getMetadata")
+    class GetMetadata {
 
         @Test
         @DisplayName("getMetadata should return an empty when not overridden")
@@ -659,6 +697,23 @@ class DomainEventTests {
             // then
             then(metadata).isEqualTo(EventMetadata.empty());
             then(metadata.isEmpty()).isTrue();
+        }
+
+        @Test
+        @DisplayName("should return provided metadata")
+        void getMetadata_ShouldReturnProvidedMetadata_WhenMetadataProvided() {
+            // given
+            EventType eventType = mock(EventType.class);
+            EventMetadata metadata = EventMetadata.builder()
+                    .correlationId("corr-123")
+                    .build();
+
+            // when
+            TestDomainEvent event = new TestDomainEvent(eventType, metadata);
+            EventMetadata result = event.getMetadata();
+
+            // then
+            then(result).isSameAs(metadata);
         }
     }
 
@@ -699,10 +754,10 @@ class DomainEventTests {
         void isOfType_ShouldReturnTrue_WhenNamesAreEqual() {
             // given
             EventType ownType = mock(EventType.class);
-            given(ownType.getName()).willReturn("TEST_EVENT");
+            given(ownType.getName()).willReturn("TEST-EVENT");
 
             EventType otherType = mock(EventType.class);
-            given(otherType.getName()).willReturn("TEST_EVENT");
+            given(otherType.getName()).willReturn("TEST-EVENT");
 
             DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
@@ -718,10 +773,10 @@ class DomainEventTests {
         void isOfType_ShouldReturnFalse_WhenNamesAreNotEqual() {
             // given
             EventType ownType = mock(EventType.class);
-            given(ownType.getName()).willReturn("TEST_EVENT_1");
+            given(ownType.getName()).willReturn("TEST-EVENT-1");
 
             EventType otherType = mock(EventType.class);
-            given(otherType.getName()).willReturn("TEST_EVENT_2");
+            given(otherType.getName()).willReturn("TEST-EVENT-2");
 
             DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
@@ -733,25 +788,6 @@ class DomainEventTests {
         }
 
         @Test
-        @DisplayName("isOfType should return true when both event type names are null")
-        void isOfType_ShouldReturnTrue_WhenBothNamesAreNull() {
-            // given
-            EventType ownType = mock(EventType.class);
-            given(ownType.getName()).willReturn(null);
-
-            EventType otherType = mock(EventType.class);
-            given(otherType.getName()).willReturn(null);
-
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
-
-            // when
-            boolean result = event.isOfType(otherType);
-
-            // then
-            then(result).isTrue();
-        }
-
-        @Test
         @DisplayName("isOfType should return false when own name is null and other name is not null")
         void isOfType_ShouldReturnFalse_WhenOwnNameIsNullAndOtherNameIsNotNull() {
             // given
@@ -759,7 +795,7 @@ class DomainEventTests {
             given(ownType.getName()).willReturn(null);
 
             EventType otherType = mock(EventType.class);
-            given(otherType.getName()).willReturn("TEST_EVENT");
+            given(otherType.getName()).willReturn("TEST-EVENT");
 
             DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
 
@@ -782,7 +818,7 @@ class DomainEventTests {
         }
 
         @Override
-        public EventType eventType() {
+        public EventType getEventType() {
             return null;
         }
 
@@ -814,6 +850,11 @@ class DomainEventTests {
         }
 
         @Override
+        public EventType getEventType() {
+            return eventType;
+        }
+
+        @Override
         public Instant getOccurredAt() {
             return Instant.now();
         }
@@ -839,20 +880,33 @@ class DomainEventTests {
      */
     private static class TestEvent extends AbstractDomainEvent<Identifier<?>, String> {
 
+        @SuppressWarnings("DataFlowIssue")
+        TestEvent(Identifier<?> aggregateId) {
+            super(aggregateId, "payload", null);
+        }
+
         TestEvent(Identifier<?> aggregateId, String payload) {
-            super(aggregateId, payload);
+            super(aggregateId, payload, mock(EventType.class));
         }
 
         TestEvent(Identifier<?> aggregateId, String payload, Clock clock) {
-            super(aggregateId, payload, clock);
+            super(aggregateId, payload, mock(EventType.class), clock);
         }
 
         TestEvent(Identifier<?> aggregateId, String payload, Clock clock, IdGenerator idGenerator) {
-            super(aggregateId, payload, clock, idGenerator);
+            super(aggregateId, payload, mock(EventType.class), clock, idGenerator);
+        }
+
+        TestEvent(Identifier<?> aggregateId,
+                  String payload,
+                  EventType eventType,
+                  Clock clock,
+                  IdGenerator idGenerator) {
+            super(aggregateId, payload, eventType, clock, idGenerator);
         }
 
         TestEvent(Identifier<?> aggregateId, String payload, EventMetadata metadata) {
-            super(aggregateId, payload, null, null, metadata);
+            super(aggregateId, payload, mock(EventType.class), null, null, metadata);
         }
 
         TestEvent(Identifier<?> aggregateId,
@@ -860,7 +914,7 @@ class DomainEventTests {
                   Clock clock,
                   IdGenerator idGenerator,
                   EventMetadata metadata) {
-            super(aggregateId, payload, clock, idGenerator, metadata);
+            super(aggregateId, payload, mock(EventType.class), clock, idGenerator, metadata);
         }
 
         public PayloadRedactionPolicy getRedactionPolicy() {
@@ -876,8 +930,12 @@ class DomainEventTests {
      */
     private static class OtherTestEvent extends AbstractDomainEvent<Identifier<?>, String> {
 
+        OtherTestEvent(EventType eventType) {
+            super(mock(Identifier.class), "payload", eventType);
+        }
+
         OtherTestEvent(Identifier<?> aggregateId, String payload, Clock clock, IdGenerator idGenerator) {
-            super(aggregateId, payload, clock, idGenerator);
+            super(aggregateId, payload, mock(EventType.class), clock, idGenerator);
         }
     }
 }

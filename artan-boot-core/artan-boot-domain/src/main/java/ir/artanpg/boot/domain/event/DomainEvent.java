@@ -78,7 +78,7 @@ public interface DomainEvent<I extends Identifier<?>, P> {
      *
      * @return the event type
      */
-    EventType eventType();
+    EventType getEventType();
 
     /**
      * Returns the exact timestamp when this event occurred.
@@ -125,18 +125,15 @@ public interface DomainEvent<I extends Identifier<?>, P> {
     /**
      * Checks if this event is of the specified {@link EventType}.
      *
-     * <p>The comparison is performed on the event type <b>names</b>, so it is
-     * independent of how either {@code EventType} instance was created
-     * (cached via {@link EventTypeRegistry#valueOf(String)}, a lambda, or a
-     * custom implementation).
+     * <p>Comparison uses full coordinate equality
+     * ({@code name}, {@code category}, {@code version}).
      *
      * @param type the event type to compare against; may be {@code null}
-     * @return {@code true} if this event's type has the same name as the
-     *         specified type, {@code false} otherwise
+     * @return {@code true} if coordinates match, {@code false} otherwise
      */
     default boolean isOfType(@Nullable EventType type) {
         if (type == null) return false;
-        EventType own = eventType();
+        EventType own = getEventType();
         return own != null && Objects.equals(own.getName(), type.getName());
     }
 }

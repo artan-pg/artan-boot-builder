@@ -18,7 +18,6 @@ package ir.artanpg.boot.application.port.driving.event;
 
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.event.EventTypeRegistry;
 import ir.artanpg.boot.domain.exception.DomainEventException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -54,14 +53,6 @@ public interface DomainEventSmartListener<E extends DomainEvent<?, ?>> extends D
      *       semantic type.</li>
      *   <li><strong>Refactoring Safety:</strong> Renaming or moving event
      *       classes will not break listener registration.</li>
-     * </ul>
-     *
-     * <p>Implementation Guidelines:
-     * <ul>
-     *   <li>Compare against stable, human-readable event type names.</li>
-     *   <li>Prefer using {@link EventTypeRegistry#valueOf(String)} constants for
-     *       type-safe comparisons.</li>
-     *   <li>This method should be fast and side effect free.</li>
      * </ul>
      *
      * @param eventType the semantic type of the event; never {@code null}

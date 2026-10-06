@@ -18,186 +18,390 @@ package ir.artanpg.boot.domain.event;
 
 import ir.artanpg.boot.domain.exception.DomainEventException;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
+import java.util.StringJoiner;
 
 /**
- * Represents a type of domain event, providing a human-readable name.
+ * Immutable class describing the type of domain event.
  *
- * <p>This functional interface is used to categorize domain events and provide
- * a type-safe way to reference event types across the system.
+ * <p>An event type is identified by three coordinates:
+ * <ul>
+ *   <li>{@code name}: mandatory logical name of the event</li>
+ *   <li>{@code category}: optional grouping (e.g. bounded context)</li>
+ *   <li>{@code version}: optional schema version</li>
+ * </ul>
+ *
+ * <p><b>Character rules:</b> Each non-absent field may contain only ASCII
+ * letters, digits and the dash character ({@code A-Z}, {@code a-z},
+ * {@code 0-9}, {@code -}).
+ *
+ * <p>The combined length of {@code name}, {@code category} and {@code version}
+ * must not exceed {@value #MAX_TOTAL_LENGTH} characters.
+ *
+ * <p><b>Immutability and equality:</b> All fields are {@code final}. Equality
+ * and hashing are based solely on the three coordinates after normalization
+ * ({@code blank} optional fields become {@code null}).
  *
  * @author Mohammad Yazdian
  * @see DomainEvent
- * @see EventTypeRegistry
  * @since 0.1.0
  */
-public interface EventType {
+public final class EventType {
 
     /**
-     * Returns the string representation of this event type.
+     * Maximum allowed sum of the lengths of name, category and version.
+     */
+    public static final int MAX_TOTAL_LENGTH = 64;
+
+    /**
+     * Allowed character pattern for each non-blank field.
      *
-     * <p>The returned name should be:
-     * <ul>
-     *   <li>Unique across the domain</li>
-     *   <li>Stable and not subject to change</li>
-     *   <li>Descriptive and human-readable</li>
-     *   <li>Following a consistent naming convention</li>
-     * </ul>
+     * <p>Letters (upper/lower), digits and dash only.
+     */
+    public static final String FIELD_PATTERN = "[A-Za-z0-9-]+";
+
+    private static final int NAME_INDEX = 0;
+    private static final int CATEGORY_INDEX = 1;
+    private static final int VERSION_INDEX = 2;
+
+    /**
+     * Human-readable description of {@link #FIELD_PATTERN}, used to build
+     * validation error messages.
+     */
+    private static final String FIELD_PATTERN_MSG = "may contain only ASCII letters, digits and '-'";
+
+    /**
+     * Expected number of segments in a cache key produced by
+     * {@link #toCacheKey()}.
+     */
+    private static final int CACHE_KEY_SEGMENT = 3;
+
+    /**
+     * Mandatory logical name of the event.
+     */
+    private final String name;
+
+    /**
+     * Optional grouping of the event.
      *
-     * @return the event type name
+     * <p>May be {@code null}. When present, matches {@link #FIELD_PATTERN}.
+     */
+    private final String category;
+
+    /**
+     * Optional schema version of the event.
+     *
+     * <p>May be {@code null}. When present, matches {@link #FIELD_PATTERN}.
+     */
+    private final String version;
+
+    /**
+     * Constructs a new {@code EventType} with pre-validated coordinates.
+     *
+     * <p>All arguments must already have been normalized and validated
+     * by {@link #of(String, String, String)}. This constructor performs
+     * no validation.
+     *
+     * @param name     the normalized, non-null event name
+     * @param category the normalized category, or {@code null}
+     * @param version  the normalized version, or {@code null}
+     */
+    private EventType(String name, @Nullable String category, @Nullable String version) {
+        this.name = name;
+        this.category = category;
+        this.version = version;
+    }
+
+    /**
+     * Creates an {@code EventType} with only a name.
+     *
+     * @param name the event name
+     * @return a validated event type with no category or version
+     * @throws DomainEventException if {@code name} is invalid
+     */
+    public static EventType of(@NonNull String name) {
+        return of(name, null, null);
+    }
+
+    /**
+     * Creates an {@code EventType} with a name and category.
+     *
+     * @param name     the event name
+     * @param category the optional category
+     * @return a validated event type with no version
+     * @throws DomainEventException if any argument is invalid
+     */
+    public static EventType of(@NonNull String name, @Nullable String category) {
+        return of(name, category, null);
+    }
+
+    /**
+     * Creates a fully validated {@code EventType}.
+     *
+     * <p>Blank optional arguments are normalized to {@code null}.
+     * The combined length of the three coordinates is checked
+     * against {@link #MAX_TOTAL_LENGTH}.</p>
+     *
+     * @param name     the event name
+     * @param category the optional category
+     * @param version  the optional version
+     * @return a validated event type
+     * @throws DomainEventException if a field is invalid or the total length exceeds the limit
+     */
+    public static EventType of(@NonNull String name, @Nullable String category, @Nullable String version) {
+        String normalizedName = requireValidName(name);
+        String normalizedCategory = normalizeOptional(category, "category");
+        String normalizedVersion = normalizeOptional(version, "version");
+
+        validateTotalLength(normalizedName, normalizedCategory, normalizedVersion);
+
+        return new EventType(normalizedName, normalizedCategory, normalizedVersion);
+    }
+
+    /**
+     * Creates a new builder for constructing {@link EventType}.
+     *
+     * @return a fresh builder
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Returns the mandatory logical name of this event type.
+     *
+     * @return the event name
      */
     @NonNull
-    String getName();
-
-    /**
-     * Returns the category of this event type.
-     *
-     * <p>Categories group related event types for routing and
-     * filtering purposes. For {@link NamedEventType} the category is derived
-     * from the structured name syntax {@code category.name.version}, where
-     * both {@code category} and {@code version} are optional and {@code name}
-     * is mandatory.
-     *
-     * <p>Custom implementations may return any value; the default is the empty
-     * string (uncategorized).
-     *
-     * @return the event category
-     */
-    default String getCategory() {
-        return "";
+    public String getName() {
+        return name;
     }
 
     /**
-     * Returns the version of this event type.
+     * Returns the optional category of this event type.
      *
-     * <p>Versions allow schema evolution of events while keeping
-     * backward compatibility. For {@link NamedEventType} the version is the
-     * final segment of the structured name syntax
-     * {@code category.name.version} and is present only when the name has at
-     * least two dots, otherwise it is the empty string. Names with a single
-     * dot such as {@code "customer.registered"} are interpreted as
-     * {@code category.name} without a version.
-     *
-     * <p>Custom implementations may return any value; the default is the empty
-     * string (unversioned).
-     *
-     * @return the event version
+     * @return the category, or {@code null} when absent
      */
-    default String getVersion() {
-        return "";
+    @Nullable
+    public String getCategory() {
+        return category;
     }
 
     /**
-     * Creates a non-cached {@code EventType} that derives its name from the
-     * given string.
+     * Returns the optional schema version of this event type.
      *
-     * @param name the event type name; must not be {@code null} or blank
-     * @return a new {@code NamedEventType} instance
-     * @throws DomainEventException if name is {@code null}, {@code blank}, or malformed according to
-     *                              {@link EventTypeRegistry#NAME_PATTERN}
+     * @return the version, or {@code null} when absent
      */
-    static EventType named(String name) {
-        return new NamedEventType(name);
+    @Nullable
+    public String getVersion() {
+        return version;
     }
 
     /**
-     * Immutable, name-based {@code EventType} implementation used by the
-     * factories above.
+     * Checks whether a category is present.
      *
-     * <p>Equality and hashing are defined solely by {@link #getName()},
-     * symmetrically and transitively across all {@code NamedEventType}
-     * instances. The contract relies on {@code getName()} never returning
-     * {@code null}.
-     *
-     * <p>When the name follows the {@code category.eventName.version} convention
-     * (at least two dot-separated segments, e.g. {@code order.placed.v1}), the
-     * leading segments are exposed as {@link #getCategory()} and the final
-     * segment as {@link #getVersion()}; otherwise both default to the empty
-     * string.
-     *
-     * @param name the event type name; guaranteed non-null and well-formed
+     * @return {@code true} if category is set, {@code false} otherwise
      */
-    record NamedEventType(String name) implements EventType {
+    public boolean hasCategory() {
+        return category != null;
+    }
+
+    /**
+     * Checks whether a version is present.
+     *
+     * @return {@code true} if version is set, {@code false} otherwise
+     */
+    public boolean hasVersion() {
+        return version != null;
+    }
+
+    /**
+     * Returns a stable cache key for this event type.
+     *
+     * <p>The key is formed by concatenating the three coordinates
+     * separated by the NUL character ({@code '\u0000'}). Absent
+     * optional fields are represented as empty segments. The
+     * resulting string is suitable for use as a map key and can be
+     * parsed back with {@link #fromCacheKey(String)}.
+     *
+     * @return the cache key
+     * @see #fromCacheKey(String)
+     */
+    @NonNull
+    public String toCacheKey() {
+        return name + '\u0000' + (category != null ? category : "") + '\u0000' + (version != null ? version : "");
+    }
+
+    /**
+     * Parses a cache key previously produced by {@link #toCacheKey()}.
+     *
+     * <p>The key must contain exactly three NUL-separated segments.
+     * Empty segments are interpreted as absent optional fields. The
+     * parsed coordinates are re-validated by
+     * {@link #of(String, String, String)}.
+     *
+     * @param cacheKey the key
+     * @return a validated event type
+     * @throws DomainEventException if the key is {@code null}, malformed, or fails validation
+     * @see #toCacheKey()
+     */
+    public static EventType fromCacheKey(@NonNull String cacheKey) {
+        if (cacheKey == null) throw new DomainEventException("The cache key cannot be null");
+
+        String[] parts = cacheKey.split("\u0000", -1);
+        if (parts.length != CACHE_KEY_SEGMENT) {
+            throw new DomainEventException("The cache key is malformed; expected 3 segments");
+        }
+
+        String name = parts[NAME_INDEX];
+        String category = parts[CATEGORY_INDEX].isEmpty() ? null : parts[CATEGORY_INDEX];
+        String version = parts[VERSION_INDEX].isEmpty() ? null : parts[VERSION_INDEX];
+
+        return of(name, category, version);
+    }
+
+    /**
+     * Validates and returns the mandatory event name.
+     *
+     * @param name the candidate name
+     * @return the validated name
+     * @throws DomainEventException if name is {@code null}, {@code blank}, or contains disallowed characters
+     */
+    private static String requireValidName(@Nullable String name) {
+        if (name == null || name.isBlank()) {
+            throw new DomainEventException("The event type name cannot be null or blank");
+        }
+        if (!name.matches(FIELD_PATTERN)) throw new DomainEventException("The event type name " + FIELD_PATTERN_MSG);
+        return name;
+    }
+
+    /**
+     * Normalizes an optional field.
+     *
+     * <p>{@code null} and {@code blank} values are converted to {@code null}.
+     * Non-blank values must match {@link #FIELD_PATTERN}.
+     *
+     * @param value      the candidate value
+     * @param fieldLabel the label used in error messages
+     * @return the normalized value, or {@code null}
+     * @throws DomainEventException if a non-blank value contains disallowed characters
+     */
+    private static @Nullable String normalizeOptional(@Nullable String value, String fieldLabel) {
+        if (value == null || value.isBlank()) return null;
+        if (!value.matches(FIELD_PATTERN)) {
+            throw new DomainEventException("The event type " + fieldLabel + " " + FIELD_PATTERN_MSG);
+        }
+        return value;
+    }
+
+    /**
+     * Validates the combined length of the three coordinates.
+     *
+     * @param name     the validated name
+     * @param category the normalized category, or {@code null}
+     * @param version  the normalized version, or {@code null}
+     * @throws DomainEventException if the combined length exceeds {@link #MAX_TOTAL_LENGTH}
+     */
+    private static void validateTotalLength(String name, @Nullable String category, @Nullable String version) {
+        int total = name.length() +
+                (category != null ? category.length() : 0) +
+                (version != null ? version.length() : 0);
+
+        if (total > MAX_TOTAL_LENGTH) {
+            throw new DomainEventException(
+                    "The combined length of name, category and version must not exceed " + MAX_TOTAL_LENGTH +
+                            " characters (actual: " + total + ")");
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof EventType that)) return false;
+
+        return name.equals(that.name)
+                && Objects.equals(category, that.category)
+                && Objects.equals(version, that.version);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, category, version);
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", EventType.class.getSimpleName() + "[", "]")
+                .add("name='" + name + "'")
+                .add("category='" + category + "'")
+                .add("version='" + version + "'")
+                .toString();
+    }
+
+    /**
+     * Builder for constructing immutable {@link EventType} instances.
+     *
+     * @author Mohammad Yazdian
+     * @since 0.1.0
+     */
+    public static final class Builder {
+
+        private String name;
+        private String category;
+        private String version;
 
         /**
-         * Canonical constructor; validates the name.
+         * Constructs an empty builder.
+         *
+         * <p>The constructor is private. use {@link EventType#builder()}
+         * to obtain a builder instance.
+         */
+        private Builder() {
+        }
+
+        /**
+         * Sets the mandatory name.
          *
          * @param name the event type name
-         * @throws DomainEventException if the name is invalid
+         * @return this builder instance for method chaining
          */
-        public NamedEventType {
-            if (name == null || name.isBlank()) throw new DomainEventException("The name cannot be null or blank");
-
-            // To resolve the [MultipleStringLiterals] rule violation in Checkstyle
-            String prefixName = "The name '" + name;
-            if (!name.matches(EventTypeRegistry.NAME_PATTERN)) {
-                throw new DomainEventException(
-                        prefixName + "' is not a valid EventType name; expected pattern "
-                                + EventTypeRegistry.NAME_PATTERN);
-            }
-            if (!name.matches(EventTypeRegistry.STRUCTURED_NAME_PATTERN)) {
-                throw new DomainEventException(
-                        prefixName + "' does not follow the required 'category.name.version' syntax"
-                                + " (name mandatory, category and version optional)");
-            }
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public String getCategory() {
-            int lastDot = name.lastIndexOf('.');
-            if (lastDot <= 0) return "";
-            int secondLastDot = name.lastIndexOf('.', lastDot - 1);
-
-            // Exactly two segments: no version, so the left part is the
-            // category ("customer" in "customer.registered").
-            if (secondLastDot <= 0) return name.substring(0, lastDot);
-
-            // Three or more segments: the trailing segment is the version, so
-            // the category is everything before the name segment.
-            return name.substring(0, secondLastDot);
-        }
-
-        @Override
-        public String getVersion() {
-            int lastDot = name.lastIndexOf('.');
-            if (lastDot <= 0) return "";
-            return name.lastIndexOf('.', lastDot - 1) > 0 ? name.substring(lastDot + 1) : "";
+        public Builder name(String name) {
+            this.name = name;
+            return this;
         }
 
         /**
-         * Returns the {@code name} component of the
-         * {@code category.name.version} syntax.
+         * Sets the optional category.
          *
-         * <p>Because {@code category} and {@code version} are optional, the
-         * parsing depends on how many dot-separated segments the name has:
-         * <ul>
-         *   <li>one segment ({@code "OrderPlacedEvent"}) the whole name is
-         *       the mandatory {@code name} part</li>
-         *   <li>two segments ({@code "customer.registered"}) the version is
-         *       absent, so the second segment is the {@code name} part and the
-         *       first one is the {@code category}</li>
-         *   <li>three or more segments
-         *       ({@code "order.OrderPlaced.v1"}) the middle segment (between
-         *       the second-to-last and the last dot) is the {@code name}
-         *       part</li>
-         * </ul>
-         *
-         * @return the parsed event type name component
+         * @param category the category
+         * @return this builder instance for method chaining
          */
-        public String getSimpleName() {
-            int lastDot = name.lastIndexOf('.');
-            if (lastDot <= 0) return name;
-            int secondLastDot = name.lastIndexOf('.', lastDot - 1);
-            if (secondLastDot > 0) return name.substring(secondLastDot + 1, lastDot);
+        public Builder category(String category) {
+            this.category = category;
+            return this;
+        }
 
-            // Only one dot: no version segment, so everything before the dot
-            // is "category.name" — but with a single dot the left part is the
-            // category and the right part is the mandatory name.
-            return name.substring(lastDot + 1);
+        /**
+         * Sets the optional version.
+         *
+         * @param version the version
+         * @return this builder instance for method chaining
+         */
+        public Builder version(String version) {
+            this.version = version;
+            return this;
+        }
+
+        /**
+         * Builds an immutable {@link EventType}.
+         *
+         * @return the constructed EventType instance
+         * @throws DomainEventException if validation fails
+         */
+        public EventType build() {
+            return EventType.of(name, category, version);
         }
     }
 }
