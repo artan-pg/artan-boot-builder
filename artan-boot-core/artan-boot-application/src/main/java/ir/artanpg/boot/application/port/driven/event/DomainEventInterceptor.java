@@ -16,8 +16,8 @@
 
 package ir.artanpg.boot.application.port.driven.event;
 
+import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.exception.InterceptorVetoException;
-import org.jspecify.annotations.NonNull;
 
 /**
  * Cross-cutting hook around the publication and per-listener handling of
@@ -60,23 +60,15 @@ import org.jspecify.annotations.NonNull;
  * phase chain; unordered interceptors run after ordered ones and keep their
  * registration order relative to each other.
  *
- * <h2>Error policy</h2>
- * An exception escaping any interceptor callback is treated as an interceptor
- * bug: the dispatcher logs it, converts it into a
- * {@link DomainEventInterceptionContext#veto(String) veto} of the current
- * phase when thrown from a "before" callback, and otherwise ignores it so one
- * faulty interceptor cannot break event delivery.
- *
- * <p>All methods have default empty implementations so that implementors only
- * override the callbacks they care about.
- *
+ * @param <E> the event type this interceptor applies to; use {@code DomainEvent<?, ?>}
+ *            for an interceptor that applies to all events
  * @author Mohammad Yazdian
  * @see DomainEventInterceptionContext
  * @see OrderedDomainEventInterceptor
  * @see InterceptorVetoException
  * @since 0.1.0
  */
-public interface DomainEventInterceptor {
+public interface DomainEventInterceptor<E extends DomainEvent<?, ?>> {
 
     /**
      * Invoked once per {@code publish}/{@code publishAll} call, before the
@@ -86,7 +78,7 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context for the publishing phase
      */
-    default void beforePublish(@NonNull DomainEventInterceptionContext context) {
+    default void beforePublish(DomainEventInterceptionContext<E> context) {
     }
 
     /**
@@ -97,7 +89,7 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context for the publishing phase
      */
-    default void afterPublish(@NonNull DomainEventInterceptionContext context) {
+    default void afterPublish(DomainEventInterceptionContext<E> context) {
     }
 
     /**
@@ -108,7 +100,7 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context carrying event and listener id
      */
-    default void beforeHandle(@NonNull DomainEventInterceptionContext context) {
+    default void beforeHandle(DomainEventInterceptionContext<E> context) {
     }
 
     /**
@@ -116,7 +108,7 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context carrying event and listener id
      */
-    default void afterHandle(@NonNull DomainEventInterceptionContext context) {
+    default void afterHandle(DomainEventInterceptionContext<E> context) {
     }
 
     /**
@@ -130,7 +122,7 @@ public interface DomainEventInterceptor {
      * @see DomainEventInterceptionContext#getThrowable()
      * @see DomainEventInterceptionContext#getRetryCount()
      */
-    default void onError(@NonNull DomainEventInterceptionContext context) {
+    default void onError(DomainEventInterceptionContext<E> context, Throwable throwable) {
     }
 
     /**
@@ -141,7 +133,7 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context of the terminal failure
      */
-    default void onHandlingFailure(@NonNull DomainEventInterceptionContext context) {
+    default void onHandlingFailure(DomainEventInterceptionContext<E> context) {
     }
 
     /**
@@ -152,6 +144,6 @@ public interface DomainEventInterceptor {
      *
      * @param context the interception context of the terminating phase
      */
-    default void onTermination(@NonNull DomainEventInterceptionContext context) {
+    default void onTermination(DomainEventInterceptionContext<E> context) {
     }
 }

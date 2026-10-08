@@ -76,15 +76,17 @@ public interface DomainEventMulticaster {
      * Add an interceptor that will observe event processing.
      *
      * @param interceptor the interceptor to add
+     * @param <E>         the event type the interceptor applies to
      */
-    void addInterceptor(@NonNull DomainEventInterceptor interceptor);
+    <E extends DomainEvent<?, ?>> void addInterceptor(@NonNull DomainEventInterceptor<E> interceptor);
 
     /**
      * Remove a previously registered interceptor.
      *
      * @param interceptor the interceptor to remove
+     * @param <E>         the event type the interceptor removes to
      */
-    void removeInterceptor(@NonNull DomainEventInterceptor interceptor);
+    <E extends DomainEvent<?, ?>> void removeInterceptor(@NonNull DomainEventInterceptor<E> interceptor);
 
     /**
      * Multicast the given domain event to all matching registered listeners.
