@@ -297,7 +297,7 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      * @return the wait interval; {@link Duration#ZERO} when disabled
      */
     @NonNull
-    public  Duration nextRetryInterval() {
+    public Duration nextRetryInterval() {
         return this.retryState.nextInterval();
     }
 
@@ -354,7 +354,7 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      * @return the immutable policy, never {@code null}
      */
     @NonNull
-    public  RetryPolicy getRetryPolicy() {
+    public RetryPolicy getRetryPolicy() {
         return this.retryState.getPolicy();
     }
 
