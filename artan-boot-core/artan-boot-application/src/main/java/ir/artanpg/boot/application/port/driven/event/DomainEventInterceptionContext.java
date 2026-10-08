@@ -186,7 +186,7 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      *
      * @param throwable the exception to set
      */
-    void setThrowable(@Nullable Throwable throwable) {
+    public void setThrowable(@Nullable Throwable throwable) {
         this.throwable.set(throwable);
     }
 
