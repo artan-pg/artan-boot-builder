@@ -112,4 +112,15 @@ public interface DomainEventInterceptor<E extends DomainEvent<?, ?>> {
      */
     default void onError(DomainEventInterceptionContext<E> context, Throwable throwable) {
     }
+
+    /**
+     * Gets the order of execution for this interceptor.
+     *
+     * <p>Lower values have higher priority.
+     *
+     * @return the order value, defaults to 0
+     */
+    default int getOrder() {
+        return 0;
+    }
 }
