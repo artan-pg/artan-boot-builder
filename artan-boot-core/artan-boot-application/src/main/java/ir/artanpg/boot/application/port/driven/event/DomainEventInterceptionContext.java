@@ -33,13 +33,19 @@ import java.util.concurrent.atomic.AtomicReference;
  * Mutable context shared by all {@link DomainEventInterceptor}s participating
  * in a single interception phase (publishing or listening).
  *
- * <p>The context solves two problems that plain method parameters cannot:
+ * <p>The context solves three problems that plain method parameters cannot:
  * <ul>
  *   <li><strong>Data exchange:</strong> interceptors can stash values
  *       (e.g. a start timestamp set by a profiling interceptor is read back
  *       by the same interceptor in the completion callback).</li>
- *   <li><strong>Veto:</strong> a security/validation interceptor can call
- *       {@link #veto(String)} to abort the current phase.</li>
+ *   <li><strong>Scoped veto:</strong> a security/validation interceptor can
+ *       call {@link #veto(String)} to abort only the <em>current unit of
+ *       work</em>. A veto raised during the publishing phase suppresses the
+ *       whole publication; a veto raised inside a per-listener handling chain
+ *       skips that single listener and nothing else — when a context is shared
+ *       among several listeners, the dispatcher must call {@link #resetVeto()}
+ *       before each listener's chain so one listener's veto never suppresses
+ *       the others.</li>
  *   <li><strong>Retry coordination:</strong> inside an error callback an
  *       interceptor calls {@link #requestRetry()}; the dispatcher evaluates
  *       the request against the context's {@link RetryPolicy} through the
@@ -88,12 +94,17 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     private final AtomicReference<Throwable> throwable = new AtomicReference<>();
 
     /**
-     * Flag indicating whether a veto has been raised.
+     * Flag indicating whether a veto has been raised for the CURRENT unit of
+     * work (the publishing phase, or one listener's handling chain). The flag is
+     * scoped: it must be cleared by {@link #resetVeto()} between units of work
+     * when the context is reused across listeners, so one listener's veto can
+     * never leak into and suppress another listener's delivery.
      */
     private final AtomicBoolean vetoed = new AtomicBoolean();
 
     /**
-     * The reason for the veto, if any.
+     * The reason for the current veto, if any. Cleared together with the
+     * vetoed flag by {@link #resetVeto()}.
      */
     private final AtomicReference<String> vetoReason = new AtomicReference<>();
 
@@ -191,8 +202,16 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     }
 
     /**
-     * Veto the current phase without a reason. The dispatcher must honor the
-     * veto by skipping the remaining work of that phase.
+     * Veto the <em>current unit of work</em> without a reason. The dispatcher
+     * must honor the veto by skipping the remaining work of that unit only:
+     * <ul>
+     *   <li>raised in {@code beforePublish} - the whole publication is
+     *       suppressed;</li>
+     *   <li>raised in {@code beforeHandle}/{@code onError} - only the listener
+     *       whose handling chain is running is skipped; other listeners still
+     *       receive the event, provided the dispatcher calls
+     *       {@link #resetVeto()} before each listener's chain.</li>
+     * </ul>
      */
     public void veto() {
         veto(null);
@@ -225,6 +244,24 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     @Nullable
     public String getVetoReason() {
         return vetoReason.get();
+    }
+
+    /**
+     * Clears any pending veto (flag and reason), delimiting the veto to the
+     * unit of work it was raised in. Dispatchers must call this between
+     * per-listener handling chains when a context instance is shared across
+     * listeners; otherwise a veto raised for one listener would leak into the
+     * next one's chain and suppress its delivery as well.
+     *
+     * @return {@code true} if a veto was present and has been cleared, {@code false} if no veto was pending
+     */
+    public boolean resetVeto() {
+        // Clear the reason first, then the flag: readers that check isVetoed()
+        // can never observe the flag set with a stale reason from a previous
+        // unit of work.
+        boolean wasVetoed = this.vetoed.getAndSet(false);
+        this.vetoReason.set(null);
+        return wasVetoed;
     }
 
     /**
