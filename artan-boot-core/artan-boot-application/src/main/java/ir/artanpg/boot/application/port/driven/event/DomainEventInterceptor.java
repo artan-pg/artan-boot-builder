@@ -17,133 +17,99 @@
 package ir.artanpg.boot.application.port.driven.event;
 
 import ir.artanpg.boot.domain.event.DomainEvent;
-import ir.artanpg.boot.domain.exception.InterceptorVetoException;
+import org.jspecify.annotations.NonNull;
 
 /**
- * Cross-cutting hook around the publication and per-listener handling of
- * domain events.
+ * Interceptor interface for domain event processing.
  *
- * <p>Unlike a passive observer, an interceptor participates in the dispatch
- * pipeline and can influence its outcome through two cooperative mechanisms
- * carried by {@link DomainEventInterceptionContext}:
- * <ul>
- *   <li><strong>Veto:</strong> {@code context.veto(reason)} aborts the current
- *       phase — remaining interceptors are skipped and delivery is suppressed.
- *       The fail-fast alternative is throwing
- *       {@link InterceptorVetoException}.</li>
- *   <li><strong>Retry request:</strong> inside an error callback,
- *       {@code context.requestRetry()} asks the dispatcher to re-attempt the
- *       failed handling step (subject to the dispatcher's retry budget).</li>
- * </ul>
+ * <p>Interceptors can be used to add cross-cutting concerns such as logging,
+ * metrics, validation, security checks, and other aspects of event processing.
+ * They can intercept both the publishing phase and the handling phase of events.
  *
- * <p>Interceptors exchange state (e.g. profiling timestamps, correlation
- * data) via the context attribute map instead of thread-locals, so they remain
- * correct across asynchronous dispatches.
+ * <p><b>Type safety:</b> the interceptor is generic over the concrete event type
+ * {@code E} it applies to. All hooks receive a strongly typed
+ * {@link DomainEventInterceptionContext}{@code <E>} — no raw/cast-based access
+ * to the event is required inside an interceptor implementation. The multicaster
+ * performs a single checked cast at dispatch time (see
+ * {@link #appliesTo(DomainEvent)}) and only invokes the interceptor when it
+ * declares compatibility with the runtime event class.
  *
- * <h2>Phases</h2>
- * <pre>
- * publish(event)
- *   |- beforePublish(context)            [vetoable]
- *   |    |- dispatch to each listener:
- *   |    |     |- beforeHandle(context)  [vetoable - skips THIS listener]
- *   |    |     |- listener.process(event)
- *   |    |     |     |- success -&gt; afterHandle(context)
- *   |    |     |     \- failure -&gt; onError(context)  [may requestRetry()]
- *   |    |                     \- retries exhausted -&gt; onHandlingFailure(context)
- *   |    \- batch bookkeeping
- *   |- afterPublish(context)             [always runs, even if vetoed/failed]
- *        \- onTermination(context)       [once per phase, success or failure]
- * </pre>
+ * <p>Implementations should be thread-safe if they are registered globally.
  *
- * <h2>Ordering</h2>
- * Implement {@link OrderedDomainEventInterceptor} to control position within a
- * phase chain; unordered interceptors run after ordered ones and keep their
- * registration order relative to each other.
- *
- * @param <E> the event type this interceptor applies to; use {@code DomainEvent<?, ?>}
- *            for an interceptor that applies to all events
+ * @param <E> the event type this interceptor applies to
  * @author Mohammad Yazdian
- * @see DomainEventInterceptionContext
- * @see OrderedDomainEventInterceptor
- * @see InterceptorVetoException
  * @since 0.1.0
  */
 public interface DomainEventInterceptor<E extends DomainEvent<?, ?>> {
 
     /**
-     * Invoked once per {@code publish}/{@code publishAll} call, before the
-     * event is routed to any listener.
+     * Determines whether this interceptor applies to the given event.
      *
-     * <p>Vetoing here suppresses the entire publication.
+     * <p>This method is consulted before any hook runs; returning {@code true}
+     * is the interceptor's contract that {@link #beforePublish},
+     * {@link #afterPublish}, {@link #beforeHandle} and {@link #afterHandle}
+     * can safely treat the context's event as type {@code E}. A typical
+     * implementation is an instanceof check against the concrete class the
+     * interceptor was parameterized with.
      *
-     * @param context the interception context for the publishing phase
+     * @param event the event about to be processed, never null
+     * @return {@code true} if this interceptor should participate in processing
+     *         the event, {@code false} otherwise
+     */
+    default boolean appliesTo(@NonNull E event) {
+        return true;
+    }
+
+    /**
+     * Method called before the event is published.
+     *
+     * <p>This allows for pre-processing or validation before the event enters
+     * the system.
+     *
+     * @param context the interception context containing event information and state
      */
     default void beforePublish(DomainEventInterceptionContext<E> context) {
     }
 
     /**
-     * Invoked once per publication after all matched listeners have been
-     * dispatched, regardless of individual successes or failures. Inspect
-     * {@link DomainEventInterceptionContext#getThrowable()} to learn whether
-     * the round ended in an error.
+     * Method called after the event is published.
      *
-     * @param context the interception context for the publishing phase
+     * <p>This allows for post-publishing actions or cleanup.
+     *
+     * @param context the interception context containing event information and state
      */
     default void afterPublish(DomainEventInterceptionContext<E> context) {
     }
 
     /**
-     * Invoked immediately before a listener processes the event.
+     * Method called before the event is handled by a listener.
      *
-     * <p>Vetoing here skips only this listener; other listeners still receive
-     * the event.
+     * <p>This allows for pre-processing or preparation before the actual
+     * handling.
      *
-     * @param context the interception context carrying event and listener id
+     * @param context the interception context containing event information and state
      */
     default void beforeHandle(DomainEventInterceptionContext<E> context) {
     }
 
     /**
-     * Invoked after a listener processed the event successfully.
+     * Method called after the event is handled by a listener.
      *
-     * @param context the interception context carrying event and listener id
+     * <p>This allows for post-handling actions or cleanup.
+     *
+     * @param context the interception context containing event information and state
      */
     default void afterHandle(DomainEventInterceptionContext<E> context) {
     }
 
     /**
-     * Invoked when a listener throws while processing the event, before the
-     * listener's own exception handler runs.
+     * Method called when an exception occurs during event processing.
      *
-     * <p>Call {@link DomainEventInterceptionContext#requestRetry()} to ask the
-     * dispatcher to re-attempt this listener invocation.
+     * <p>This allows for custom error handling and recovery strategies.
      *
-     * @param context the interception context
-     * @see DomainEventInterceptionContext#getThrowable()
-     * @see DomainEventInterceptionContext#getRetryCount()
+     * @param context   the interception context containing event information and state
+     * @param throwable the exception that occurred during event processing
      */
     default void onError(DomainEventInterceptionContext<E> context, Throwable throwable) {
-    }
-
-    /**
-     * Invoked once a listener invocation has definitively failed — after the
-     * retry budget was exhausted or no retry was requested.
-     *
-     * <p>Typical uses: dead-letter routing, alerting, audit records.
-     *
-     * @param context the interception context of the terminal failure
-     */
-    default void onHandlingFailure(DomainEventInterceptionContext<E> context) {
-    }
-
-    /**
-     * Invoked exactly once when the current phase terminates, whether it
-     * completed normally, was vetoed, or failed. Runs after the corresponding
-     * {@code after*} callback and is the right place for releasing resources
-     * acquired in a {@code before*} callback (timers, spans, counters).
-     *
-     * @param context the interception context of the terminating phase
-     */
-    default void onTermination(DomainEventInterceptionContext<E> context) {
     }
 }
