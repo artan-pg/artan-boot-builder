@@ -20,12 +20,16 @@ import ir.artanpg.boot.domain.exception.DomainException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.mockito.BDDMockito.given;
 
 /**
  * Unit tests for {@link SimplePage}.
@@ -33,12 +37,16 @@ import static org.assertj.core.api.BDDAssertions.thenThrownBy;
  * @author Mohammad Yazdian
  */
 @DisplayName("SimplePage")
+@ExtendWith(MockitoExtension.class)
 class SimplePageTests {
 
     private static final String ERROR_CONTENT_NULL = "The content list must not be null";
     private static final String ERROR_PAGEABLE_NULL = "The pageable list must not be null";
     private static final String ERROR_TOTAL_NEGATIVE = "The total elements must not be negative";
     private static final String ERROR_CONVERTER_NULL = "Function converter must not be null";
+
+    @Mock
+    private Page<String> mockPage;
 
     @Nested
     @DisplayName("of")
@@ -451,6 +459,40 @@ class SimplePageTests {
             then(page1.hashCode())
                     .as("Equal pages should have same hashCode")
                     .isEqualTo(page2.hashCode());
+        }
+
+        @Test
+        @DisplayName("should not be equal when totalElements differ")
+        void equals_ShouldReturnFalse_WhenTotalElementsDiffer() {
+            // given
+            Page<String> p1 = SimplePage.of(List.of("a"), SimplePageable.of(0, 10), 10);
+            Page<String> p2 = SimplePage.of(List.of("a"), SimplePageable.of(0, 10), 20);
+
+            // when
+            boolean equals = p1.equals(p2);
+
+            // then
+            then(equals).isFalse();
+        }
+
+        @Test
+        @DisplayName("should not be equal when totalPage differ")
+        void equals_ShouldReturnFalse_WhenTotalPagesDiffer() {
+            // given
+            List<String> content = List.of("a");
+            Pageable pageable = SimplePageable.of(0, 10);
+            Page<String> page = SimplePage.of(content, pageable, 10);
+
+            given(mockPage.getContent()).willReturn(content);
+            given(mockPage.getPageable()).willReturn(pageable);
+            given(mockPage.getTotalElements()).willReturn(10L);
+            given(mockPage.getTotalPages()).willReturn(999);
+
+            // when
+            boolean result = page.equals(mockPage);
+
+            // then
+            then(result).isFalse();
         }
     }
 

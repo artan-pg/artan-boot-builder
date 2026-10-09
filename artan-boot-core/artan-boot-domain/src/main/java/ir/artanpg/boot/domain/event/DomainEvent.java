@@ -20,7 +20,6 @@ import ir.artanpg.boot.domain.model.Identifier;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
-import java.util.Objects;
 
 /**
  * Represents a significant occurrence within the domain that is of interest
@@ -134,6 +133,6 @@ public interface DomainEvent<I extends Identifier<?>, P> {
     default boolean isOfType(@Nullable EventType type) {
         if (type == null) return false;
         EventType own = getEventType();
-        return own != null && Objects.equals(own.getName(), type.getName());
+        return own != null && own.equals(type);
     }
 }

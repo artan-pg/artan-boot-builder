@@ -16,6 +16,8 @@
 
 package ir.artanpg.boot.domain.audit;
 
+import ir.artanpg.boot.domain.exception.BusinessValidationException;
+import ir.artanpg.boot.domain.exception.DomainException;
 import ir.artanpg.boot.domain.model.AggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.domain.model.SoftDeletableAggregateRoot;
@@ -36,6 +38,44 @@ import java.time.Instant;
  */
 public interface SoftDeletableAuditableAggregateRoot<E extends Serializable, I extends Identifier<?>>
         extends AuditableAggregateRoot<E, I>, SoftDeletableAggregateRoot<I> {
+
+    /**
+     * Marks this aggregate as soft-deleted, transitioning it to a logically
+     * deleted state.
+     *
+     * <p>This method performs a logical deletion of the aggregate without
+     * physically removing it from the data store. The aggregate remains in the
+     * database but is excluded from standard queries and business operations.
+     *
+     * <p><b>Implementation Guidelines</b>
+     * <ul>
+     *   <li><b>Idempotency:</b> This method should be idempotent. If the
+     *      aggregate is already deleted, calling this method again should have
+     *      no effect and should not throw an exception. This allows safe retry
+     *      mechanisms and concurrent operations.</li>
+     *   <li><b>Domain Event:</b> It is strongly recommended to implement this
+     *      method using the {@code apply} pattern with a domain event. This
+     *      ensures consistency with event sourcing principles and maintains a
+     *      complete audit trail of state changes.</li>
+     *   <li><b>Business Validation:</b> Before marking as deleted, the
+     *      aggregate should validate that deletion is allowed according to
+     *      business rules. If deletion is not permitted, this method should
+     *      throw a {@link BusinessValidationException}.</li>
+     *   <li><b>Cascade Behavior:</b> Consider whether deletion should cascade
+     *      to child entities or related aggregates. This logic should be
+     *      encapsulated within the aggregate or handled by domain services.
+     *      </li>
+     *   <li><b>State Mutation:</b> This method should only change the internal
+     *      state of the aggregate. It should not perform any I/O operations or
+     *      interact with external systems.</li>
+     * </ul>
+     *
+     * @param deletedBy the user/system who deleted this aggregate
+     * @throws DomainException if deletedBy is {@code null} or {@code blank}
+     * @see #isDeleted()
+     * @see #isRestorable()
+     */
+    void markAsDeleted(String deletedBy);
 
     /**
      * Returns the user who deleted this aggregate.

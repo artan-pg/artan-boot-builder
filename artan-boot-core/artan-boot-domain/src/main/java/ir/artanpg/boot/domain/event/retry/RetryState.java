@@ -104,6 +104,35 @@ public final class RetryState {
     }
 
     /**
+     * Checks whether a retry is not allowed due to exhaustion,
+     * budget limits, or deadline.
+     *
+     * @return {@code true} if retry is not allowed, {@code false} otherwise
+     */
+    private boolean isRetryNotAllowed() {
+        return exhausted || isBudgetExhausted() || isDeadlineElapsed();
+    }
+
+    /**
+     * Checks whether the retry budget has been exhausted.
+     *
+     * @return {@code true} if no retries are allowed or granted, {@code false} otherwise
+     */
+    private boolean isBudgetExhausted() {
+        return policy.maxRetries() <= 0 || retriesGranted >= policy.maxRetries();
+    }
+
+    /**
+     * Reports that the current attempt failed, implicitly
+     * requesting a retry.
+     *
+     * @return {@code true} if a retry was granted, {@code false} otherwise
+     */
+    public synchronized boolean onFailure() {
+        return onFailure(true);
+    }
+
+    /**
      * Reports that the current attempt failed.
      *
      * <p>If {@code retryRequested} is {@code true} and the budget
@@ -115,26 +144,13 @@ public final class RetryState {
      */
     public synchronized boolean onFailure(boolean retryRequested) {
         lastAttemptFailed = true;
-        if (!retryRequested) {
-            exhausted = false;
-            return false;
-        }
-        if (policy.maxRetries() <= 0 || retriesGranted >= policy.maxRetries() || isDeadlineElapsed()) {
+        if (!retryRequested) return false;
+        if (isRetryNotAllowed()) {
             exhausted = true;
             return false;
         }
         retriesGranted++;
         return true;
-    }
-
-    /**
-     * Reports that the current attempt failed, implicitly
-     * requesting a retry.
-     *
-     * @return {@code true} if a retry was granted, {@code false} otherwise
-     */
-    public synchronized boolean onFailure() {
-        return onFailure(true);
     }
 
     /**
@@ -198,7 +214,10 @@ public final class RetryState {
      */
     @NonNull
     public synchronized Duration nextInterval() {
-        return policy.nextInterval(Math.max(1, retriesGranted));
+        // retriesGranted is the count of ALREADY-granted retries; the wait before
+        // the NEXT attempt belongs to retry number (retriesGranted + 1).
+        // Math.max(1, retriesGranted) made retry#1 and retry#2 return the same interval.
+        return policy.nextInterval(retriesGranted + 1);
     }
 
     /**

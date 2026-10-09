@@ -165,17 +165,24 @@ public interface DomainEventListener<E extends DomainEvent<?, ?>> {
 
             @Override
             public int getOrder() {
-                return DomainEventListener.this.getOrder();
+                // Highest priority (lowest value) among the two parts.
+                return Math.min(DomainEventListener.this.getOrder(), after.getOrder());
             }
 
             @Override
             public boolean supportsAsyncExecution() {
-                return DomainEventListener.super.supportsAsyncExecution();
+                // A composite is async-safe only if BOTH parts are.
+                return DomainEventListener.this.supportsAsyncExecution() && after.supportsAsyncExecution();
             }
 
             @Override
             public String getListenerId() {
-                return DomainEventListener.super.getListenerId();
+                String self = DomainEventListener.this.getListenerId();
+                String next = after.getListenerId();
+                if (self.isBlank() && next.isBlank()) return "";
+                if (next.isBlank()) return self;
+                if (self.isBlank()) return next;
+                return self + "->" + next;   // preserve identity of both parts
             }
 
             @Override

@@ -750,25 +750,6 @@ class DomainEventTests {
         }
 
         @Test
-        @DisplayName("isOfType should return true when both event type names are equal")
-        void isOfType_ShouldReturnTrue_WhenNamesAreEqual() {
-            // given
-            EventType ownType = mock(EventType.class);
-            given(ownType.getName()).willReturn("TEST-EVENT");
-
-            EventType otherType = mock(EventType.class);
-            given(otherType.getName()).willReturn("TEST-EVENT");
-
-            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(ownType, EventMetadata.empty());
-
-            // when
-            boolean result = event.isOfType(otherType);
-
-            // then
-            then(result).isTrue();
-        }
-
-        @Test
         @DisplayName("isOfType should return false when event type names are not equal")
         void isOfType_ShouldReturnFalse_WhenNamesAreNotEqual() {
             // given
@@ -804,6 +785,36 @@ class DomainEventTests {
 
             // then
             then(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("isOfType should return false when names match but category differs")
+        void isOfType_ShouldReturnFalse_WhenCategoryDiffers() {
+            // given
+            EventType eventType = EventType.of("TEST-EVENT", "A");
+            EventMetadata eventMetadata = EventMetadata.empty();
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(eventType, eventMetadata);
+
+            // when
+            boolean result = event.isOfType(EventType.of("TEST-EVENT", "B"));
+
+            // then
+            then(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("isOfType should return true only on full coordinate match")
+        void isOfType_ShouldReturnTrue_WhenAllCoordinatesMatch() {
+            // given
+            EventType eventType = EventType.of("TEST-EVENT", "A", "v2");
+            EventMetadata eventMetadata = EventMetadata.empty();
+            DomainEvent<Identifier<?>, String> event = new TestDomainEvent(eventType, eventMetadata);
+
+            //when
+            boolean result = event.isOfType(eventType);
+
+            // then
+            then(result).isTrue();
         }
     }
 

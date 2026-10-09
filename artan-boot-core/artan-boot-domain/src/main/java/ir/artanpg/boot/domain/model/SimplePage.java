@@ -160,13 +160,16 @@ public class SimplePage<T> implements Page<T> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Page<?> page)) return false;
+
         return Objects.equals(this.content, page.getContent()) &&
-                Objects.equals(this.pageable, page.getPageable());
+                Objects.equals(this.pageable, page.getPageable()) &&
+                this.totalElements == page.getTotalElements() &&
+                this.totalPages == page.getTotalPages();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.content, this.pageable);
+        return Objects.hash(this.content, this.pageable, this.totalElements, this.totalPages);
     }
 
     @Override

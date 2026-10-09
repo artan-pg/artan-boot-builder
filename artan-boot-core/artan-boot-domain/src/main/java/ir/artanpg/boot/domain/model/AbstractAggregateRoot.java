@@ -61,11 +61,11 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
      * Constructs a new aggregate root with the specified id.
      *
      * @param id the unique identifier for this aggregate
-     * @throws DomainException if the id is {@code null}
+     * @throws DomainException if the id is {@code null} or a {@code blank} string
      */
     protected AbstractAggregateRoot(I id) {
         if (id == null) throw new DomainException(IDENTIFIER_NULL_EXCEPTION);
-
+        id.requireValid();
         this.id = id;
     }
 
@@ -73,10 +73,11 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
      * Constructs an aggregate root using a builder.
      *
      * @param builder the builder containing the identifier
-     * @throws DomainException if the builder is {@code null}
+     * @throws DomainException if the builder is {@code null} or a {@code blank} string
      */
     protected AbstractAggregateRoot(AbstractBuilder<I, ?, ?> builder) {
         if (builder == null) throw new DomainException("The builder cannot be null");
+        builder.id.requireValid();
         this.id = builder.id;
     }
 

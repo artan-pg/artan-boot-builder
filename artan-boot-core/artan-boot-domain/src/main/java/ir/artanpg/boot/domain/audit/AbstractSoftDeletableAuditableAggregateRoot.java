@@ -30,16 +30,22 @@ import java.util.StringJoiner;
  *
  * <p>This class extends {@link AbstractAuditableAggregateRoot} and adds
  * logical deletion capability with deleter tracking. When an aggregate is
- * soft-deleted via {@link #markAsDeleted(String)}, the deleter identity
- * and deletion timestamp are recorded.
+ * soft-deleted via {@link #markAsDeleted(String)} or the no-argument
+ * {@link #markAsDeleted()}, the deleter identity and deletion timestamp
+ * are recorded, and the aggregate is marked as modified (audit trail).
  *
  * <h2>Design Principles:</h2>
  * <ul>
- *   <li><b>Idempotency:</b> Deletion methods are idempotent.</li>
- *   <li><b>Deleter Tracking:</b> Records who deleted the aggregate and when.
- *       </li>
- *   <li><b>Restoration:</b> A deleted aggregate can be restored via
- *       {@link #restore()}.</li>
+ *   <li><b>Idempotency:</b> Deletion methods are idempotent; repeated
+ *       calls never overwrite the original deletion metadata.</li>
+ *   <li><b>Complete Audit Trail:</b> Every state transition (deletion and
+ *       restoration) updates {@code lastModifiedBy} /
+ *       {@code lastModifiedDate}. The no-argument {@link #markAsDeleted()}
+ *       records the {@code system} principal so that the deletion is
+ *       always attributable.</li>
+ *   <li><b>Clean Restoration:</b> {@link #restore()} clears stale
+ *       {@code deletedBy} / {@code deletedDate} values so a subsequent
+ *       deletion records fresh information.</li>
  * </ul>
  *
  * @param <I> The type of identifier used by this aggregate root
@@ -51,6 +57,12 @@ import java.util.StringJoiner;
 public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Identifier<?>>
         extends AbstractAuditableAggregateRoot<I>
         implements SoftDeletableAuditableAggregateRoot<String, I> {
+
+    /**
+     * Fallback principal used when an audit mutation is performed without an
+     * explicitly provided actor.
+     */
+    public static final String SYSTEM_PRINCIPAL = "system";
 
     @Serial
     private static final long serialVersionUID = 5029384716250483917L;
@@ -103,26 +115,29 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
         return this.deleted;
     }
 
+    /**
+     * Marks this aggregate as deleted without an explicit actor.
+     *
+     * <p>Unlike a bare flag flip, this implementation preserves a complete
+     * audit trail: the deletion is attributed to the {@code system}
+     * principal, the deletion timestamp is recorded, and the modification
+     * audit fields are updated. The operation is idempotent — calling it on
+     * an already-deleted aggregate has no effect and never overwrites the
+     * original deletion metadata.
+     */
     @Override
     public void markAsDeleted() {
-        this.deleted = true;
+        markAsDeleted(SYSTEM_PRINCIPAL);
     }
 
-    /**
-     * Marks this aggregate as deleted and records deleter information.
-     *
-     * <p>This method is idempotent. If the aggregate is already deleted,
-     * subsequent calls have no effect.
-     *
-     * @param deletedBy the user/system who deleted this aggregate
-     * @throws DomainException if deletedBy is {@code null} or {@code blank}
-     */
+    @Override
     public void markAsDeleted(String deletedBy) {
         if (!this.deleted) {
             validateDeletedBy(deletedBy);
             this.deleted = true;
             this.deletedBy = deletedBy;
             this.deletedDate = Instant.now();
+            markAsModified(deletedBy);
         }
     }
 
@@ -135,6 +150,9 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
     public void restore() {
         if (!isRestorable()) throw new BusinessValidationException("Aggregate is not restorable");
         this.deleted = false;
+        this.deletedBy = null;
+        this.deletedDate = null;
+        markAsModified(SYSTEM_PRINCIPAL);
     }
 
     @Override

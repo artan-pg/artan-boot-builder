@@ -44,4 +44,17 @@ public interface Identifier<I extends Serializable> extends ValueObject, Seriali
      * @throws DomainException if the id was {@code null}, or if it was a string, it was also {@code blank}
      */
     I value();
+
+    /**
+     * Validates this identifier's raw value and returns it.
+     *
+     * @return the non-null (and non-blank, for Strings) value
+     * @throws DomainException if the value is {@code null} or a {@code blank} string
+     */
+    default I requireValid() {
+        I v = value();
+        if (v == null) throw new DomainException("The identifier value cannot be null");
+        if (v instanceof String s && s.isBlank()) throw new DomainException("The identifier value cannot be blank");
+        return v;
+    }
 }

@@ -56,7 +56,7 @@ public interface DomainEventInterceptor<E extends DomainEvent<?, ?>> {
      * @return {@code true} if this interceptor should participate in processing
      *         the event, {@code false} otherwise
      */
-    default boolean appliesTo(@NonNull E event) {
+    default boolean appliesTo(@NonNull DomainEvent<?, ?> event) {
         return true;
     }
 

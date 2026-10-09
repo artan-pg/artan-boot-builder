@@ -90,7 +90,9 @@ public abstract class AbstractSoftDeletableAggregateRoot<I extends Identifier<?>
 
     @Override
     public void markAsDeleted() {
+        if (this.deleted) return;
         this.deleted = true;
+        onMarkedAsDeleted();
     }
 
     @Override
@@ -102,6 +104,32 @@ public abstract class AbstractSoftDeletableAggregateRoot<I extends Identifier<?>
     public void restore() {
         if (!isRestorable()) throw new BusinessValidationException("Aggregate is not restorable");
         this.deleted = false;
+        onRestored();
+    }
+
+    /**
+     * Hook invoked exactly once when this aggregate transitions from a
+     * non-deleted to a deleted state via {@link #markAsDeleted()}.
+     *
+     * <p>The default implementation does nothing. Subclasses may override
+     * this method to record additional deletion metadata (e.g. deleter
+     * identity and timestamp) without duplicating the idempotency guard.
+     */
+    protected void onMarkedAsDeleted() {
+        // Hook method - override in subclasses to add custom behavior
+    }
+
+    /**
+     * Hook invoked exactly once after {@link #restore()} clears the deletion
+     * flag. Implementations should clear any stale deletion-related state
+     * (e.g. {@code deletedBy} / {@code deletedDate}) so that a subsequent
+     * call to {@link #markAsDeleted()} records fresh deletion information
+     * instead of silently keeping outdated values.
+     *
+     * <p>The default implementation does nothing.
+     */
+    protected void onRestored() {
+        // Hook method - override in subclasses to add custom behavior
     }
 
     @Override

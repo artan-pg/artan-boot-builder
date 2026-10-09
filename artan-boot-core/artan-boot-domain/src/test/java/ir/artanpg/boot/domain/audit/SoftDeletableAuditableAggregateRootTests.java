@@ -43,6 +43,7 @@ class SoftDeletableAuditableAggregateRootTests {
     private static final String AGGREGATE_ID = "aggregate-1";
     private static final String USER_1 = "user-1";
     private static final String USER_2 = "user-2";
+    private static final String USER_SYSTEM = "system";
     private static final String BLANK_STRING = "   ";
     private static final String ERROR_NOT_RESTORABLE = "Aggregate is not restorable";
     private static final String ERROR_DELETED_BY_NULL_OR_BLANK = "The deletedBy cannot be null or blank";
@@ -116,7 +117,7 @@ class SoftDeletableAuditableAggregateRootTests {
     class MarkAsDeletedNoArgs {
 
         @Test
-        @DisplayName("should set deleted to true when not deleted")
+        @DisplayName("should set deleted to true and record system audit trail when not deleted")
         void markAsDeleted_ShouldSetDeletedToTrue_WhenNotDeleted() {
             // given
             TestSoftDelAuditableAggregate aggregate = createAggregate();
@@ -127,11 +128,17 @@ class SoftDeletableAuditableAggregateRootTests {
             // then
             then(aggregate.isDeleted()).isTrue();
             then(aggregate.getDeletedBy())
-                    .as("DeletedBy should remain null")
-                    .isNull();
+                    .as("DeletedBy should be attributed to the system principal")
+                    .isEqualTo(USER_SYSTEM);
             then(aggregate.getDeletedDate())
-                    .as("DeletedDate should remain null")
-                    .isNull();
+                    .as("DeletedDate should be recorded")
+                    .isNotNull();
+            then(aggregate.getLastModifiedBy())
+                    .as("Audit trail: lastModifiedBy should be updated on deletion")
+                    .isEqualTo(USER_SYSTEM);
+            then(aggregate.getLastModifiedDate())
+                    .as("Audit trail: lastModifiedDate should be updated on deletion")
+                    .isNotNull();
         }
 
         @Test
@@ -245,7 +252,7 @@ class SoftDeletableAuditableAggregateRootTests {
         void isRestorable_ShouldReturnTrue_WhenDeleted() {
             // given
             TestSoftDelAuditableAggregate aggregate = createAggregate();
-            aggregate.markAsDeleted();
+            aggregate.markAsDeleted("test-user");
 
             // when & then
             then(aggregate.isRestorable())
@@ -285,6 +292,44 @@ class SoftDeletableAuditableAggregateRootTests {
                     .as("Should throw when not restorable")
                     .isInstanceOf(BusinessValidationException.class)
                     .hasMessage(ERROR_NOT_RESTORABLE);
+        }
+
+        @Test
+        @DisplayName("should clear stale deletion metadata when restored")
+        void restore_ShouldClearDeletedMetadata_WhenRestorable() {
+            // given
+            TestSoftDelAuditableAggregate aggregate = createAggregate();
+            aggregate.markAsDeleted(USER_2);
+
+            // when
+            aggregate.restore();
+
+            // then
+            then(aggregate.getDeletedBy())
+                    .as("Stale deletedBy must be cleared on restore")
+                    .isNull();
+            then(aggregate.getDeletedDate())
+                    .as("Stale deletedDate must be cleared on restore")
+                    .isNull();
+            then(aggregate.getLastModifiedBy())
+                    .as("Audit trail: restoration should update lastModifiedBy")
+                    .isEqualTo("system");
+        }
+
+        @Test
+        @DisplayName("should record fresh deletion metadata when deleted again after restore")
+        void markAsDeleted_ShouldRecordFreshMetadata_WhenDeletedAgainAfterRestore() {
+            // given
+            TestSoftDelAuditableAggregate aggregate = createAggregate();
+            aggregate.markAsDeleted(USER_2);
+            aggregate.restore();
+
+            // when
+            aggregate.markAsDeleted(USER_1);
+
+            // then
+            then(aggregate.getDeletedBy()).isEqualTo(USER_1);
+            then(aggregate.getDeletedDate()).isNotNull();
         }
     }
 

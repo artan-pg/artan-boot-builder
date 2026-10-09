@@ -261,6 +261,26 @@ class RetryStateTests {
             then(result).isTrue();
             then(state.getRetriesGranted()).isEqualTo(1);
         }
+
+        @Test
+        @DisplayName("should short-circuit on exhausted flag when retry requested after exhaustion")
+        void onFailure_ShouldShortCircuitOnExhausted_WhenRetryRequestedAfterExhaustion() {
+            // given
+            RetryPolicy policy = RetryPolicy.fixed(1, ofMillis(100));
+            RetryState state = new RetryState(policy);
+            state.beginAttempt();
+            state.onFailure(true);   // grant the single retry
+            state.beginAttempt();
+            state.onFailure(true);   // budget exhausted -> exhausted = true
+
+            // when
+            state.beginAttempt();
+            boolean result = state.onFailure(true);
+
+            // then
+            then(result).isFalse();
+            then(state.isExhausted()).isTrue();
+        }
     }
 
     // ========================================================================================
@@ -405,17 +425,23 @@ class RetryStateTests {
     class NextIntervalTests {
 
         @Test
-        @DisplayName("should return interval from policy")
-        void nextInterval_ShouldReturnIntervalFromPolicy_WhenCalled() {
+        @DisplayName("nextInterval should grow exponentially per granted retry")
+        void nextInterval_ShouldAdvanceBackoff_WhenRetriesGranted() {
             // given
-            RetryPolicy policy = RetryPolicy.fixed(3, ofMillis(200));
+            RetryPolicy policy = RetryPolicy.exponential(5, ofMillis(100), 2.0, ofSeconds(30), 0.0, Duration.ZERO);
             RetryState state = new RetryState(policy);
 
-            // when
-            Duration interval = state.nextInterval();
+            // when & then
+            state.beginAttempt();
+            then(state.nextInterval()).isEqualTo(ofMillis(100)); // before retry #1
+            state.onFailure(true);                               // retry 1 granted
 
-            // then
-            then(interval).isEqualTo(ofMillis(200));
+            state.beginAttempt();
+            then(state.nextInterval()).isEqualTo(ofMillis(200)); // before retry #2 (was buggy: 100)
+            state.onFailure(true);
+
+            state.beginAttempt();
+            then(state.nextInterval()).isEqualTo(ofMillis(400)); // before retry #3
         }
     }
 

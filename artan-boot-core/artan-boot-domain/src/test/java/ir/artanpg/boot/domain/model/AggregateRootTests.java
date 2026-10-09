@@ -42,6 +42,7 @@ class AggregateRootTests {
     private static final String IDENTIFIER_2 = "988316af-5941-46b2-b3bc-2580a5d50320";
 
     private static final String ID_NULL_EXCEPTION = "The identifier cannot be null";
+    private static final String ID_BLANK_EXCEPTION = "The identifier value cannot be blank";
 
     @Nested
     @DisplayName("Constructor with Identifier")
@@ -74,6 +75,32 @@ class AggregateRootTests {
                     .as("Should throw DomainException when id is null")
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ID_NULL_EXCEPTION);
+        }
+
+        @Test
+        @DisplayName("should throw DomainException when id is empty string")
+        void constructor_ShouldThrowDomainException_WhenIdIsEmptyString() {
+            // given
+            TestIdentifier empty = new TestIdentifier("");
+
+            // when & then
+            thenThrownBy(() -> new TestAggregate(empty))
+                    .as("Should throw DomainException when id is empty string")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ID_BLANK_EXCEPTION);
+        }
+
+        @Test
+        @DisplayName("should throw DomainException when id is blank string")
+        void constructor_ShouldThrowDomainException_WhenIdIsBlankString() {
+            // given
+            TestIdentifier blank = new TestIdentifier("  ");
+
+            // when & then
+            thenThrownBy(() -> new TestAggregate(blank))
+                    .as("Should throw DomainException when id is blank string")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ID_BLANK_EXCEPTION);
         }
     }
 
