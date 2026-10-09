@@ -26,6 +26,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,9 +58,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  *
  * <p>Beyond the free-form attribute map, the context carries first-class
- * fields describing the ongoing dispatch: the event itself, the target
- * listener id (only in the per-listener handling phases), the terminal
- * throwable (in error callbacks) and the retry state machine.
+ * fields describing the ongoing dispatch: the event itself, the explicit
+ * lifecycle {@link InterceptionPhase}, the target listener id (only in the
+ * per-listener handling phases), the terminal throwable (in error callbacks)
+ * and the retry state machine. Correlation/causation/tenant are surfaced as
+ * typed accessors over the event's immutable metadata, and an optional
+ * parent-context link plus a round timeout make nested dispatch chains (an
+ * event published while handling another event) and end-to-end budgets
+ * observable.
  *
  * <p>Instances are thread-safe: attributes live in a lazily allocated
  * {@link ConcurrentHashMap} published through an {@link AtomicReference}
@@ -69,16 +75,29 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <E> the specific {@code DomainEvent} subclass to listen to
  * @author Mohammad Yazdian
  * @see DomainEventInterceptor
+ * @see InterceptionPhase
  * @see RetryPolicy
  * @see RetryState
  * @since 0.1.0
  */
-public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
+public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> implements NestedInterceptionContext {
 
     /**
-     * Attribute key conventionally used by timing interceptors.
+     * Attribute key conventionally used by timing interceptors. Namespaced
+     * with the framework prefix to avoid collisions with application keys.
      */
-    public static final String START_TIME_NANOS = "startTimeNanos";
+    public static final String START_TIME_NANOS = "artan.startTimeNanos";
+
+    /**
+     * Attribute key under which the idempotency/deduplication key of the
+     * current delivery round is stored when explicitly set via
+     * {@link #setIdempotencyKey(String)}.
+     */
+    public static final String IDEMPOTENCY_KEY = "artan.idempotencyKey";
+
+    private static final String EVENT_NULL_EXCEPTION = "The event cannot be null";
+    private static final String PHASE_NULL_EXCEPTION = "The phase cannot be null";
+    private static final String RETRY_POLICY_NULL_EXCEPTION = "The retryPolicy cannot be null";
 
     /**
      * The domain event being intercepted.
@@ -86,9 +105,41 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     private final E event;
 
     /**
-     * The id of the target listener for publish-phase contexts.
+     * The lifecycle phase this context belongs to. Explicit rather than
+     * inferred from {@code listenerId == null}, so hooks can validate they
+     * received the right kind of context.
+     */
+    private final InterceptionPhase phase;
+
+    /**
+     * The id of the target listener for per-listener handling-phase contexts;
+     * {@code null} in publish-phase contexts, where no single listener is
+     * targeted yet.
      */
     private final String listenerId;
+
+    /**
+     * The context of the enclosing dispatch round this round is nested in, if
+     * any. Set when handling an event that was published while another event
+     * was still being dispatched; enables tracing the causal chain across
+     * rounds without abusing the attribute map.
+     */
+    @Nullable
+    private final NestedInterceptionContext parent;
+
+    /**
+     * Overall wall-clock budget for this interception round, measured from
+     * construction with a monotonic clock. {@code null} means unbounded;
+     * independent of (and complementary to) the retry policy's deadline,
+     * which only bounds the retry cycle.
+     */
+    @Nullable
+    private final Duration roundTimeout;
+
+    /**
+     * Monotonic creation instant backing {@link #roundElapsed()}.
+     */
+    private final long createdAtNanos;
 
     /**
      * The terminal throwable, if any error occurred.
@@ -153,15 +204,130 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     public DomainEventInterceptionContext(@NonNull E event,
                                           @NonNull String listenerId,
                                           @NonNull RetryPolicy policy) {
-        if (event == null) throw new DomainEventException("The event cannot be null");
-        if (listenerId == null || listenerId.isBlank()) {
-            throw new DomainEventException("The listenerId cannot be null or blank");
+        this(event, InterceptionPhase.HANDLE, requireListenerId(listenerId), policy, null, null);
+    }
+
+    /**
+     * Full canonical constructor shared by the public constructors
+     * and the static factories/builder.
+     *
+     * <p>Validates the phase/listener-id invariant: handling-phase
+     * contexts MUST carry a non-blank listener id, publish-phase
+     * contexts MUST NOT carry one.
+     *
+     * @param event        the intercepted event
+     * @param phase        the lifecycle phase
+     * @param listenerId   the target listener id, or {@code null} for publish-phase contexts
+     * @param policy       the retry policy for this round
+     * @param parent       the enclosing dispatch context, or {@code null} for top-level rounds
+     * @param roundTimeout the wall-clock budget, or {@code null} for unbounded rounds
+     * @throws DomainEventException if event, phase, or policy is {@code null},
+     *                              if the phase/listener-id invariant is violated,
+     *                              or if roundTimeout is negative
+     */
+    private DomainEventInterceptionContext(E event,
+                                           InterceptionPhase phase,
+                                           @Nullable String listenerId,
+                                           RetryPolicy policy,
+                                           @Nullable NestedInterceptionContext parent,
+                                           @Nullable Duration roundTimeout) {
+        if (event == null) throw new DomainEventException(EVENT_NULL_EXCEPTION);
+        if (phase == null) throw new DomainEventException(PHASE_NULL_EXCEPTION);
+        if (policy == null) throw new DomainEventException(RETRY_POLICY_NULL_EXCEPTION);
+        if (phase.isHandlingPhase() && (listenerId == null || listenerId.isBlank())) {
+            throw new DomainEventException("A handling-phase context requires a non-blank listenerId");
         }
-        if (policy == null) throw new DomainEventException("The retryPolicy cannot be null");
+        if (phase.isPublishPhase() && listenerId != null) {
+            throw new DomainEventException("A publish-phase context must not carry a listenerId");
+        }
+        if (roundTimeout != null && roundTimeout.isNegative()) {
+            throw new DomainEventException("The roundTimeout cannot be negative");
+        }
 
         this.event = event;
+        this.phase = phase;
         this.listenerId = listenerId;
         this.retryState = policy.newState();
+        this.parent = parent;
+        this.roundTimeout = roundTimeout;
+        this.createdAtNanos = System.nanoTime();
+    }
+
+    /**
+     * Factory for a <strong>publish-phase</strong> context: wraps the event
+     * before it is routed to any listener, hence carries no listener id
+     * ({@link #getListenerId()} returns {@code null}) and {@link #getPhase()}
+     * is {@link InterceptionPhase#PUBLISH}. A veto raised on such a context
+     * suppresses the entire publication.
+     *
+     * @param event the event about to be published
+     * @param <E>   the concrete event type
+     * @return a fresh publish-phase context with no retry budget and no timeout
+     */
+    public static <E extends DomainEvent<?, ?>> DomainEventInterceptionContext<E> forPublish(@NonNull E event) {
+        return builder(event).phase(InterceptionPhase.PUBLISH).build();
+    }
+
+    /**
+     * Factory for a <strong>publish-phase</strong> context with an explicit
+     * retry budget (useful when the publisher itself re-attempts publication).
+     *
+     * @param event  the event about to be published
+     * @param policy the retry policy honored when interceptors request a retry
+     * @param <E>    the concrete event type
+     * @return a fresh publish-phase context bound to {@code policy}
+     */
+    public static <E extends DomainEvent<?, ?>> DomainEventInterceptionContext<E> forPublish(
+            @NonNull E event, @NonNull RetryPolicy policy) {
+        return builder(event).phase(InterceptionPhase.PUBLISH).retryPolicy(policy).build();
+    }
+
+    /**
+     * Factory for a <strong>per-listener handling-phase</strong> context with
+     * an explicit retry budget. Equivalent to the public constructor but reads
+     * better at dispatcher call sites and pairs with {@link #forPublish}.
+     *
+     * @param event      the event being handled
+     * @param listenerId the id of the target listener
+     * @param policy     the retry policy honored when interceptors request a retry
+     * @param <E>        the concrete event type
+     * @return a fresh handling-phase context bound to {@code policy}
+     */
+    public static <E extends DomainEvent<?, ?>> DomainEventInterceptionContext<E> forHandling(
+            @NonNull E event, @NonNull String listenerId, @NonNull RetryPolicy policy) {
+        return builder(event).phase(InterceptionPhase.HANDLE)
+                .listenerId(listenerId).retryPolicy(policy).build();
+    }
+
+    /**
+     * Returns a fluent builder for contexts of the given event type. Seeded
+     * with the safest defaults: {@link InterceptionPhase#PUBLISH}, no retry
+     * budget, no parent, no timeout.
+     *
+     * @param event the intercepted event, must not be null
+     * @param <E>   the concrete event type
+     * @return a fresh builder
+     */
+    public static <E extends DomainEvent<?, ?>> @NonNull Builder<E> builder(@NonNull E event) {
+        return new Builder<>(event);
+    }
+
+    /**
+     * Derives a builder for a <strong>nested child round</strong>: a handler
+     * synchronously published {@code childEvent} while this round was running.
+     * The child inherits the parent link (and thus the causal chain visible
+     * through {@link #getDepth()}/{@link #getRootRound()}) while starting
+     * fresh veto/retry state. The caller must still supply the child's
+     * listener id — the builder defaults to a handling-phase context.
+     *
+     * @param childEvent the event of the nested round
+     * @param <F>        the child context's event type
+     * @return a pre-seeded builder with {@code parent(this)} set
+     */
+    public <F extends DomainEvent<?, ?>> @NonNull Builder<F> deriveChild(F childEvent) {
+        return new Builder<>(childEvent)
+                .phase(InterceptionPhase.HANDLE)
+                .parent(this);
     }
 
     /**
@@ -175,13 +341,179 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     }
 
     /**
-     * Returns the id of the listener whose processing is intercepted.
+     * Returns the lifecycle phase of this context. Prefer branching on this
+     * over {@code getListenerId() == null} — the phase is the authoritative,
+     * constructor-validated discriminator between publish-level and
+     * handle-level rounds.
      *
-     * @return the listener id
+     * @return the phase, never {@code null}
      */
     @NonNull
+    public InterceptionPhase getPhase() {
+        return phase;
+    }
+
+    /**
+     * Convenience predicate: {@code getPhase().isPublishPhase()}.
+     *
+     * @return {@code true} if this context belongs to the publishing side, {@code false} otherwise
+     */
+    public boolean isPublishPhase() {
+        return phase.isPublishPhase();
+    }
+
+    /**
+     * Convenience predicate: {@code getPhase().isHandlingPhase()}.
+     *
+     * @return {@code true} if this context belongs to a per-listener round, {@code false} otherwise
+     */
+    public boolean isHandlingPhase() {
+        return phase.isHandlingPhase();
+    }
+
+    /**
+     * Returns the id of the listener whose processing is intercepted, or
+     * {@code null} in publish-phase contexts (guaranteed consistent with
+     * {@link #getPhase()} by the constructor validation).
+     *
+     * @return the listener id, or {@code null}
+     */
+    @Nullable
     public String getListenerId() {
         return listenerId;
+    }
+
+    @Override
+    public NestedInterceptionContext getParent() {
+        return parent;
+    }
+
+    @Override
+    public int getDepth() {
+        int depth = 0;
+        NestedInterceptionContext p = this.parent;
+        while (p != null) {
+            depth++;
+            p = p.getParent();
+        }
+        return depth;
+    }
+
+    @Override
+    public NestedInterceptionContext getRootRound() {
+        NestedInterceptionContext current = this;
+        while (current.getParent() != null) {
+            current = current.getParent();
+        }
+        return current;
+    }
+
+    /**
+     * Returns the correlation id from the event metadata.
+     *
+     * @return the correlation id, or {@code null}
+     */
+    @Nullable
+    public String getCorrelationId() {
+        return event.getMetadata().getCorrelationId();
+    }
+
+    /**
+     * Returns the causation id from the event metadata.
+     *
+     * @return the causation id, or {@code null}
+     */
+    @Nullable
+    public String getCausationId() {
+        return event.getMetadata().getCausationId();
+    }
+
+    /**
+     * Returns the tenant from the event metadata.
+     *
+     * @return the tenant, or {@code null}
+     */
+    @Nullable
+    public String getTenant() {
+        return event.getMetadata().getTenant();
+    }
+
+    /**
+     * Sets the idempotency / deduplication key for this delivery round. The
+     * dispatcher should consult {@link #getIdempotencyKey()} before invoking
+     * handlers and skip already-processed deliveries (at-least-once transports
+     * rely on this to become effectively once). Falls back to the event's
+     * {@code eventId} — the natural per-fact dedup key — when never set.
+     *
+     * @param idempotencyKey the dedup key; {@code null} or {@code blank} clears the override and
+     *                       restores the {@code eventId} fallback
+     */
+    public void setIdempotencyKey(@Nullable String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            attributesOrEmpty().remove(IDEMPOTENCY_KEY);
+            return;
+        }
+        attributesOrCreate().put(IDEMPOTENCY_KEY, idempotencyKey);
+    }
+
+    /**
+     * The effective idempotency key of this round: the explicitly assigned key
+     * if present, otherwise the event's unique {@code eventId}.
+     *
+     * @return a non-blank dedup key
+     */
+    @NonNull
+    public String getIdempotencyKey() {
+        Object override = attributesOrEmpty().get(IDEMPOTENCY_KEY);
+        if (override instanceof String idempotencyKey && !idempotencyKey.isBlank()) return idempotencyKey;
+        return event.getEventId();
+    }
+
+    /**
+     * The configured wall-clock budget for this round, if any.
+     *
+     * @return the timeout, or {@code null} when the round is unbounded
+     */
+    @Nullable
+    public Duration getRoundTimeout() {
+        return roundTimeout;
+    }
+
+    /**
+     * Monotonic time elapsed since this context was created.
+     *
+     * @return elapsed duration, always non-negative
+     */
+    @NonNull
+    public Duration roundElapsed() {
+        return Duration.ofNanos(Math.max(0, System.nanoTime() - createdAtNanos));
+    }
+
+    /**
+     * Cooperative timeout check: {@code true} once the round budget has been
+     * consumed. Dispatchers must poll this at safe points (before each
+     * listener, before each retry attempt) and stop gracefully when it flips.
+     *
+     * @return {@code true} if a timeout is configured and has elapsed, {@code false} otherwise
+     */
+    public boolean isRoundTimedOut() {
+        if (roundTimeout == null || roundTimeout.isZero()) return false;
+        return System.nanoTime() - createdAtNanos >= roundTimeout.toNanos();
+    }
+
+    /**
+     * Remaining time in the round budget, useful for deriving per-step
+     * timeouts (e.g. clamping a listener's own deadline to what's left).
+     *
+     * @return the remaining duration, or {@link Duration#ZERO} when expired;
+     *         also {@code ZERO} when no budget is configured — check
+     *         {@link #getRoundTimeout()} to distinguish "no budget"
+     */
+    @NonNull
+    public Duration roundRemaining() {
+        if (roundTimeout == null) return Duration.ZERO;
+        long remaining = roundTimeout.toNanos() - (System.nanoTime() - createdAtNanos);
+        return Duration.ofNanos(Math.max(0, remaining));
     }
 
     /**
@@ -475,6 +807,13 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
         return Map.copyOf(attributesOrEmpty());
     }
 
+    private static String requireListenerId(String listenerId) {
+        if (listenerId == null || listenerId.isBlank()) {
+            throw new DomainEventException("The listenerId cannot be null or blank");
+        }
+        return listenerId;
+    }
+
     /**
      * Returns the attributes map, or an empty map if not initialized.
      *
@@ -508,6 +847,21 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
             }
         }
         return map;
+    }
+
+    @Override
+    public @NonNull String toString() {
+        return new StringJoiner(", ", "DomainEventInterceptionContext[", "]")
+                .add("event=" + event.getEventId())
+                .add("phase=" + phase)
+                .add("listenerId=" + (listenerId == null ? "<none>" : "'" + listenerId + "'"))
+                .add("depth=" + getDepth())
+                .add("correlationId=" + getCorrelationId())
+                .add("idempotencyKey=" + getIdempotencyKey())
+                .add("vetoed=" + vetoed.get())
+                .add("roundTimedOut=" + isRoundTimedOut())
+                .add("retryState=" + retryState)
+                .toString();
     }
 
     /**
@@ -547,6 +901,103 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
          */
         public boolean isHandlingPhase() {
             return this == HANDLE;
+        }
+    }
+
+    /**
+     * Fluent builder covering the full cross-product of phase, listener id,
+     * retry policy, parent link and round timeout without exploding into
+     * constructor overloads.
+     *
+     * @param <E> the concrete event type
+     */
+    public static final class Builder<E extends DomainEvent<?, ?>> {
+
+        private final E event;
+        private InterceptionPhase phase = InterceptionPhase.PUBLISH;
+        private String listenerId;
+        private RetryPolicy retryPolicy = RetryPolicy.none();
+        private NestedInterceptionContext parent;
+        private Duration roundTimeout;
+
+        /**
+         * Creates a builder seeded with the given event.
+         *
+         * @param event the intercepted event
+         * @throws DomainEventException if event is {@code null}
+         */
+        public Builder(@NonNull E event) {
+            if (event == null) throw new DomainEventException(EVENT_NULL_EXCEPTION);
+            this.event = event;
+        }
+
+        /**
+         * Sets the lifecycle phase.
+         *
+         * @param phase the phase
+         * @return this builder instance for method chaining
+         * @throws DomainEventException if phase is {@code null}
+         */
+        public Builder<E> phase(@NonNull InterceptionPhase phase) {
+            if (phase == null) throw new DomainEventException(PHASE_NULL_EXCEPTION);
+            this.phase = phase;
+            return this;
+        }
+
+        /**
+         * Sets the listener id.
+         *
+         * @param listenerId the listener id
+         * @return this builder instance for method chaining
+         */
+        public Builder<E> listenerId(@Nullable String listenerId) {
+            this.listenerId = listenerId;
+            return this;
+        }
+
+        /**
+         * Sets the retry policy.
+         *
+         * @param retryPolicy the retry policy
+         * @return this builder instance for method chaining
+         * @throws DomainEventException if policy is {@code null}
+         */
+        public Builder<E> retryPolicy(@NonNull RetryPolicy retryPolicy) {
+            if (retryPolicy == null) throw new DomainEventException(RETRY_POLICY_NULL_EXCEPTION);
+            this.retryPolicy = retryPolicy;
+            return this;
+        }
+
+        /**
+         * Sets the parent context for a nested round.
+         *
+         * @param parent the parent context
+         * @return this builder instance for method chaining
+         */
+        public Builder<E> parent(@Nullable NestedInterceptionContext parent) {
+            this.parent = parent;
+            return this;
+        }
+
+        /**
+         * Caps the total wall-clock budget of this interception
+         * round. Enforced cooperatively.
+         *
+         * @param roundTimeout the timeout
+         * @return this builder instance for method chaining
+         */
+        public Builder<E> roundTimeout(@Nullable Duration roundTimeout) {
+            this.roundTimeout = roundTimeout;
+            return this;
+        }
+
+        /**
+         * Builds the interception context.
+         *
+         * @return a new context instance
+         */
+        public DomainEventInterceptionContext<E> build() {
+            return new DomainEventInterceptionContext<>(event, phase, listenerId, retryPolicy, parent, roundTimeout);
         }
     }
 }
