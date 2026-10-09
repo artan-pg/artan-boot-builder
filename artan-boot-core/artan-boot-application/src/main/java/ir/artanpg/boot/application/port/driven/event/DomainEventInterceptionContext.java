@@ -24,6 +24,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,9 +61,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * listener id (only in the per-listener handling phases), the terminal
  * throwable (in error callbacks) and the retry state machine.
  *
- * <p>Instances are thread-safe: attributes live in a
- * {@link ConcurrentHashMap}, flags are atomic, and the retry transitions are
- * synchronized inside {@link RetryState}.
+ * <p>Instances are thread-safe: attributes live in a lazily allocated
+ * {@link ConcurrentHashMap} published through an {@link AtomicReference}
+ * (created on first write only, races resolved with CAS), flags are atomic,
+ * and the retry transitions are synchronized inside {@link RetryState}.
  *
  * @param <E> the specific {@code DomainEvent} subclass to listen to
  * @author Mohammad Yazdian
@@ -123,7 +125,7 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     /**
      * Arbitrary attributes shared among interceptors.
      */
-    private final Map<String, Object> attributes = new ConcurrentHashMap<>();
+    private final AtomicReference<Map<String, Object>> attributesRef = new AtomicReference<>();
 
     /**
      * Creates a context for a per-listener handling phase using the default
@@ -400,12 +402,15 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      *
      * @param key   attribute key
      * @param value attribute value
-     * @return the previous value associated with {@code key}, or {@code null}
+     * @throws DomainEventException if key is {@code null} or {@code blank}
      */
-    @Nullable
-    public Object setAttribute(@NonNull String key, @Nullable Object value) {
-        if (value == null) return attributes.remove(key);
-        return attributes.put(key, value);
+    public void setAttribute(@NonNull String key, @Nullable Object value) {
+        if (key == null || key.isBlank()) throw new DomainEventException("The key cannot be null or blank");
+        if (value == null) {
+            removeAttribute(key);
+        } else {
+            attributesOrCreate().put(key, value);
+        }
     }
 
     /**
@@ -415,8 +420,8 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      * @return the stored value, or {@code null} if absent
      */
     @Nullable
-    public Object getAttribute(@NonNull String key) {
-        return attributes.get(key);
+    public Object getAttribute(String key) {
+        return attributesOrEmpty().get(key);
     }
 
     /**
@@ -430,7 +435,7 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
     @Nullable
     @SuppressWarnings("unchecked")
     public <V> V getAttribute(@NonNull String key, @NonNull Class<V> type) {
-        Object value = attributes.get(key);
+        Object value = getAttribute(key);
         return type.isInstance(value) ? (V) value : null;
     }
 
@@ -438,20 +443,110 @@ public final class DomainEventInterceptionContext<E extends DomainEvent<?, ?>> {
      * Removes a stored attribute.
      *
      * @param key attribute key
-     * @return the removed value, or {@code null} if absent
      */
-    @Nullable
-    public Object removeAttribute(@NonNull String key) {
-        return attributes.remove(key);
+    public void removeAttribute(String key) {
+        Map<String, Object> map = attributesOrEmpty();
+        if (!map.isEmpty()) map.remove(key);
     }
 
     /**
-     * Returns an unmodifiable snapshot view of all attributes.
+     * Returns a live, unmodifiable view of the attributes.
      *
-     * @return live-backed unmodifiable map of attributes
+     * <p>Changes made via setAttribute/removeAttribute will be reflected in
+     * this view immediately.
+     *
+     * @return a live unmodifiable view of the current state
      */
     @NonNull
     public Map<String, Object> getAttributes() {
-        return Map.copyOf(attributes);
+        return Collections.unmodifiableMap(attributesOrEmpty());
+    }
+
+    /**
+     * Returns an immutable snapshot of the current attributes.
+     *
+     * <p>Use this if you need a detached copy that won't change even if
+     * attributes are modified later.
+     *
+     * @return a detached, immutable copy
+     */
+    @NonNull
+    public Map<String, Object> attributesSnapshot() {
+        return Map.copyOf(attributesOrEmpty());
+    }
+
+    /**
+     * Returns the attributes map, or an empty map if not initialized.
+     *
+     * <p>This method guarantees a non-null return value for safe iteration
+     * and access without requiring null checks.
+     *
+     * @return the attributes map, never {@code null}
+     */
+    private Map<String, Object> attributesOrEmpty() {
+        Map<String, Object> map = attributesOrCreate();
+        return (map != null) ? map : Collections.emptyMap();
+    }
+
+    /**
+     * Lazily initializes and returns the attributes map.
+     *
+     * <p>Uses a compare-and-set (CAS) operation to ensure thread-safe
+     * initialization without synchronization overhead.
+     *
+     * @return the current attributes map
+     */
+    private Map<String, Object> attributesOrCreate() {
+        Map<String, Object> map = attributesRef.get();
+        if (map == null) {
+            // Create a new ConcurrentHashMap candidate
+            map = new ConcurrentHashMap<>();
+            // Atomically set it if no other thread has already done so
+            if (!attributesRef.compareAndSet(null, map)) {
+                // If CAS failed, another thread won the race; use their map
+                map = attributesRef.get();
+            }
+        }
+        return map;
+    }
+
+    /**
+     * The lifecycle phase of an interception round carried by a
+     * {@link DomainEventInterceptionContext}.
+     *
+     * @author Mohammad Yazdian
+     * @since 0.1.0
+     */
+    public enum InterceptionPhase {
+
+        /**
+         * Event is being published: no target listener; veto suppresses whole
+         * publication.
+         */
+        PUBLISH,
+
+        /**
+         * Event is being delivered to a single identified listener; veto skips
+         * only that listener.
+         */
+        HANDLE;
+
+        /**
+         * Checks if this phase is the publishing phase.
+         *
+         * @return {@code true} if this is {@link #PUBLISH}, {@code false} otherwise
+         */
+        public boolean isPublishPhase() {
+            return this == PUBLISH;
+        }
+
+        /**
+         * Checks if this phase is the handling phase.
+         *
+         * @return {@code true} if this is {@link #HANDLE}, {@code false} otherwise
+         */
+        public boolean isHandlingPhase() {
+            return this == HANDLE;
+        }
     }
 }
