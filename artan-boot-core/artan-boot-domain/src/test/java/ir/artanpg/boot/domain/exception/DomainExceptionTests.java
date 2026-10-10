@@ -198,6 +198,55 @@ class DomainExceptionTests {
             // then
             then(exception.getMessageArgs()).isEmpty();
         }
+
+        @Test
+        @DisplayName("should isolate exception from later mutation of constructor input array")
+        void constructor_ShouldDefensivelyCopyArgs_WhenMessageArgsProvided() {
+            // given
+            String[] inputArgs = {MESSAGE_ARG_1, MESSAGE_ARG_2};
+
+            // when
+            DomainException exception =
+                    new DomainException(SIMPLE_ERROR_MESSAGE_CODE_FORMATED_I18N, inputArgs, SIMPLE_ERROR_MESSAGE);
+            inputArgs[0] = "mutated-after-construction";
+            inputArgs[1] = "also-mutated";
+
+            // then
+            then(exception.getMessageArgs())
+                    .as("mutating the array passed to the constructor must not affect the exception state")
+                    .containsExactly(MESSAGE_ARG_1, MESSAGE_ARG_2);
+        }
+
+        @Test
+        @DisplayName("should isolate exception from later mutation of constructor input array when cause is present")
+        void constructor_ShouldDefensivelyCopyArgs_WhenMessageArgsProvidedWithCause() {
+            // given
+            String[] inputArgs = {MESSAGE_ARG_1, MESSAGE_ARG_3};
+            Throwable cause = new RuntimeException(SIMPLE_ERROR_MESSAGE_CAUSE);
+
+            // when
+            DomainException exception = new DomainException(
+                    SIMPLE_ERROR_MESSAGE_CODE_FORMATED_I18N, inputArgs, SIMPLE_ERROR_MESSAGE, cause);
+            inputArgs[0] = "mutated";
+
+            // then
+            then(exception.getMessageArgs())
+                    .containsExactly(MESSAGE_ARG_1, MESSAGE_ARG_3);
+            then(exception.getCause()).isSameAs(cause);
+        }
+
+        @Test
+        @DisplayName("should preserve empty messageArgs after defensive copy")
+        void constructor_ShouldPreserveEmptyArgs_WhenEmptyArrayProvided() {
+            // given
+            String[] emptyArgs = {};
+
+            // when
+            DomainException exception =
+                    new DomainException(SIMPLE_ERROR_MESSAGE_CODE_FORMATED_I18N, emptyArgs, SIMPLE_ERROR_MESSAGE);
+            // then
+            then(exception.getMessageArgs()).isEmpty();
+        }
     }
 
     @Nested
@@ -383,6 +432,57 @@ class DomainExceptionTests {
 
             // when & then
             then(exception).isInstanceOf(Throwable.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("MessageArgs defensive copy")
+    class MessageArgsDefensiveCopy {
+
+        @Test
+        @DisplayName("should not expose internal array when getMessageArgs is called")
+        void getMessageArgs_ShouldReturnDefensiveCopy_WhenArgsArePresent() {
+            // given
+            DomainException exception =
+                    new DomainException(SIMPLE_ERROR_MESSAGE_CODE_FORMATED_I18N, MESSAGE_ARGS, SIMPLE_ERROR_MESSAGE);
+
+            // when
+            String[] returned = exception.getMessageArgs();
+            returned[0] = "mutated";
+
+            // then
+            then(exception.getMessageArgs())
+                    .as("mutating the array returned by getMessageArgs must not affect the exception state")
+                    .containsExactly(MESSAGE_ARG_1, MESSAGE_ARG_2);
+        }
+
+        @Test
+        @DisplayName("should return null when messageArgs were not provided")
+        void getMessageArgs_ShouldReturnNull_WhenArgsWereNotProvided() {
+            // given
+            DomainException exception = new DomainException(SIMPLE_ERROR_MESSAGE);
+
+            // when & then
+            then(exception.getMessageArgs()).isNull();
+        }
+
+        @Test
+        @DisplayName("should return a distinct array instance from getMessageArgs")
+        void getMessageArgs_ShouldReturnNewArrayInstance_EachCall() {
+            // given
+            DomainException exception =
+                    new DomainException(SIMPLE_ERROR_MESSAGE_CODE_FORMATED_I18N, MESSAGE_ARGS, SIMPLE_ERROR_MESSAGE);
+
+            // when
+            String[] first = exception.getMessageArgs();
+            String[] second = exception.getMessageArgs();
+
+            // then
+            then(first)
+                    .as("each call to getMessageArgs should return a new array instance")
+                    .isNotSameAs(second)
+                    .containsExactly(MESSAGE_ARG_1, MESSAGE_ARG_2);
+            then(second).containsExactly(MESSAGE_ARG_1, MESSAGE_ARG_2);
         }
     }
 }

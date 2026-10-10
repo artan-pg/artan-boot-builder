@@ -17,6 +17,7 @@
 package ir.artanpg.boot.domain.exception;
 
 import java.io.Serial;
+import java.util.Arrays;
 
 /**
  * A runtime exception representing a violation of domain business rules.
@@ -89,7 +90,7 @@ public class DomainException extends RuntimeException {
     public DomainException(String messageCode, String[] messageArgs, String message) {
         super(message);
         this.messageCode = messageCode;
-        this.messageArgs = messageArgs;
+        this.messageArgs = messageArgs == null ? null : Arrays.copyOf(messageArgs, messageArgs.length);
     }
 
     /**
@@ -136,7 +137,7 @@ public class DomainException extends RuntimeException {
     public DomainException(String messageCode, String[] messageArgs, String message, Throwable cause) {
         super(message, cause);
         this.messageCode = messageCode;
-        this.messageArgs = messageArgs;
+        this.messageArgs = messageArgs == null ? null : Arrays.copyOf(messageArgs, messageArgs.length);
     }
 
     /**
@@ -161,6 +162,6 @@ public class DomainException extends RuntimeException {
      * @return an array of message arguments
      */
     public String[] getMessageArgs() {
-        return this.messageArgs;
+        return messageArgs == null ? null : Arrays.copyOf(messageArgs, messageArgs.length);
     }
 }
