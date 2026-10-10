@@ -222,6 +222,38 @@ class SoftDeletableAggregateRootTests {
                     .as("Should be restorable when deleted")
                     .isTrue();
         }
+
+        @Test
+        @DisplayName("should return false when deleted but canRestore returns false")
+        void isRestorable_ShouldReturnFalse_WhenCanRestoreReturnsFalse() {
+            // given
+            TestSoftDeletableAggregate aggregate = createNonRestorableAggregate();
+            aggregate.markAsDeleted();
+
+            // when
+            boolean result = aggregate.isRestorable();
+
+            // then
+            then(result)
+                    .as("Should not be restorable when canRestore returns false")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("should return true when deleted and canRestore returns true")
+        void isRestorable_ShouldReturnTrue_WhenDeletedAndCanRestoreReturnsTrue() {
+            // given
+            TestSoftDeletableAggregate aggregate = createAggregate();
+            aggregate.markAsDeleted();
+
+            // when
+            boolean result = aggregate.isRestorable();
+
+            // then
+            then(result)
+                    .as("Default canRestore is true, so deleted aggregate must be restorable")
+                    .isTrue();
+        }
     }
 
     @Nested
@@ -258,6 +290,27 @@ class SoftDeletableAggregateRootTests {
                     .as("Should throw when not restorable")
                     .isInstanceOf(BusinessValidationException.class)
                     .hasMessage(ERROR_NOT_RESTORABLE);
+        }
+
+        @Test
+        @DisplayName("should throw BusinessValidationException when canRestore returns false")
+        void restore_ShouldThrowException_WhenCanRestoreReturnsFalse() {
+            // given
+            TestSoftDeletableAggregate aggregate = createNonRestorableAggregate();
+            aggregate.markAsDeleted();
+
+            // when & then
+            thenThrownBy(aggregate::restore)
+                    .as("Should throw when canRestore returns false")
+                    .isInstanceOf(BusinessValidationException.class)
+                    .hasMessage(ERROR_NOT_RESTORABLE);
+
+            then(aggregate.isDeleted())
+                    .as("Aggregate must remain deleted after failed restore")
+                    .isTrue();
+            then(aggregate.getRestoredHookCount())
+                    .as("onRestored must not fire when restore is rejected")
+                    .isZero();
         }
     }
 
@@ -588,6 +641,10 @@ class SoftDeletableAggregateRootTests {
         return new TestSoftDeletableAggregate(new TestIdentifier(AGGREGATE_ID));
     }
 
+    private TestSoftDeletableAggregate createNonRestorableAggregate() {
+        return new NonRestorableSoftDeletableAggregate(new TestIdentifier(AGGREGATE_ID));
+    }
+
     // ========================================================================================
     // Test Doubles
     // ========================================================================================
@@ -656,6 +713,26 @@ class SoftDeletableAggregateRootTests {
             public TestSoftDeletableAggregate build() {
                 return new TestSoftDeletableAggregate(this);
             }
+        }
+    }
+
+    /**
+     * Test double that overrides {@code canRestore()} to always return
+     * {@code false}, used to verify the extension point in
+     * {@code isRestorable()} / {@code restore()}.
+     */
+    private static class NonRestorableSoftDeletableAggregate extends TestSoftDeletableAggregate {
+
+        @Serial
+        private static final long serialVersionUID = 4644927908361037221L;
+
+        NonRestorableSoftDeletableAggregate(TestIdentifier id) {
+            super(id);
+        }
+
+        @Override
+        public boolean canRestore() {
+            return false;
         }
     }
 }

@@ -166,9 +166,17 @@ public interface SoftDeletableAggregateRoot<I extends Identifier<?>> extends Agg
      *       state with other aggregates or violate uniqueness constraints.</li>
      * </ul>
      *
+     * <p><b>Implementation notes:</b> Abstract base classes implement this
+     * method as {@code deleted && canRestore()}. The protected
+     * {@code canRestore()} hook defaults to {@code true} and is the extension
+     * point for aggregate-local restoration rules. Override
+     * {@code canRestore()} in concrete aggregates; do not override
+     * {@code isRestorable()} itself.
+     *
      * @return {@code true} if this aggregate is deleted and can be restored, {@code false} otherwise
      * @see #isDeleted()
      * @see #markAsDeleted()
+     * @see #canRestore()
      */
     boolean isRestorable();
 
@@ -224,5 +232,25 @@ public interface SoftDeletableAggregateRoot<I extends Identifier<?>> extends Agg
      */
     default void onRestored() {
         // Hook method - override in subclasses to add custom behavior
+    }
+
+    /**
+     * Extension point for domain-specific restoration rules.
+     *
+     * <p>Called only when the aggregate is already deleted. The default
+     * implementation always returns {@code true}, meaning any soft-deleted
+     * aggregate is restorable.
+     *
+     * <p>Override in subclasses to enforce additional invariants that are
+     * fully owned by this aggregate (for example a time window based on
+     * internal state). Checks that require other aggregates or external
+     * systems belong in a domain/application service, not here.
+     *
+     * @return {@code true} if restoration is allowed by domain rules
+     * @see #isRestorable()
+     * @see #restore()
+     */
+    default boolean canRestore() {
+        return true;
     }
 }

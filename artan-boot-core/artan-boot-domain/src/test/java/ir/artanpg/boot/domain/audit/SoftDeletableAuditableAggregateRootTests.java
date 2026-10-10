@@ -259,6 +259,32 @@ class SoftDeletableAuditableAggregateRootTests {
                     .as("Should be restorable")
                     .isTrue();
         }
+
+        @Test
+        @DisplayName("should return false when deleted but canRestore returns false")
+        void isRestorable_ShouldReturnFalse_WhenCanRestoreReturnsFalse() {
+            // given
+            TestSoftDelAuditableAggregate aggregate = createNonRestorableAggregate();
+            aggregate.markAsDeleted(USER_2);
+
+            // when & then
+            then(aggregate.isRestorable())
+                    .as("Should not be restorable when canRestore returns false")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("should return true when deleted and canRestore returns true")
+        void isRestorable_ShouldReturnTrue_WhenDeletedAndCanRestoreReturnsTrue() {
+            // given
+            TestSoftDelAuditableAggregate aggregate = createAggregate();
+            aggregate.markAsDeleted(USER_2);
+
+            // when & then
+            then(aggregate.isRestorable())
+                    .as("Default canRestore is true, so deleted aggregate must be restorable")
+                    .isTrue();
+        }
     }
 
     @Nested
@@ -330,6 +356,30 @@ class SoftDeletableAuditableAggregateRootTests {
             // then
             then(aggregate.getDeletedBy()).isEqualTo(USER_1);
             then(aggregate.getDeletedDate()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should throw BusinessValidationException when canRestore returns false")
+        void restore_ShouldThrowException_WhenCanRestoreReturnsFalse() {
+            // given
+            TestSoftDelAuditableAggregate aggregate = createNonRestorableAggregate();
+            aggregate.markAsDeleted(USER_2);
+
+            // when & then
+            thenThrownBy(aggregate::restore)
+                    .as("Should throw when canRestore returns false")
+                    .isInstanceOf(BusinessValidationException.class)
+                    .hasMessage(ERROR_NOT_RESTORABLE);
+
+            then(aggregate.isDeleted())
+                    .as("Aggregate must remain deleted after failed restore")
+                    .isTrue();
+            then(aggregate.getDeletedBy())
+                    .as("Deletion metadata must remain intact after failed restore")
+                    .isEqualTo(USER_2);
+            then(aggregate.getDeletedDate())
+                    .as("Deletion date must remain intact after failed restore")
+                    .isNotNull();
         }
     }
 
@@ -436,6 +486,12 @@ class SoftDeletableAuditableAggregateRootTests {
         return new TestSoftDelAuditableAggregate(id, USER_1, createdDate);
     }
 
+    private TestSoftDelAuditableAggregate createNonRestorableAggregate() {
+        TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+        Instant createdDate = Instant.now().minus(1, ChronoUnit.DAYS);
+        return new NonRestorableSoftDelAuditableAggregate(id, USER_1, createdDate);
+    }
+
     // ========================================================================================
     // Test Doubles
     // ========================================================================================
@@ -474,6 +530,26 @@ class SoftDeletableAuditableAggregateRootTests {
             public TestSoftDelAuditableAggregate build() {
                 return new TestSoftDelAuditableAggregate(this);
             }
+        }
+    }
+
+    /**
+     * Test double that overrides {@code canRestore()} to always return
+     * {@code false}, used to verify the extension point in
+     * {@code isRestorable()} / {@code restore()}.
+     */
+    private static class NonRestorableSoftDelAuditableAggregate extends TestSoftDelAuditableAggregate {
+
+        @Serial
+        private static final long serialVersionUID = -2215818760297442646L;
+
+        NonRestorableSoftDelAuditableAggregate(TestIdentifier id, String createdBy, Instant createdDate) {
+            super(id, createdBy, createdDate);
+        }
+
+        @Override
+        public boolean canRestore() {
+            return false;
         }
     }
 }

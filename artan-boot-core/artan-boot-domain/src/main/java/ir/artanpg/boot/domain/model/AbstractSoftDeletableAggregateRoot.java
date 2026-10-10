@@ -96,8 +96,8 @@ public abstract class AbstractSoftDeletableAggregateRoot<I extends Identifier<?>
     }
 
     @Override
-    public boolean isRestorable() {
-        return this.deleted;
+    public final boolean isRestorable() {
+        return this.deleted && canRestore();
     }
 
     @Override

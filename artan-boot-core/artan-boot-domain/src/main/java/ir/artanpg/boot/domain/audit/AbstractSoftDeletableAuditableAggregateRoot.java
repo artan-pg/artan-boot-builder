@@ -143,8 +143,8 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
     }
 
     @Override
-    public boolean isRestorable() {
-        return this.deleted;
+    public final boolean isRestorable() {
+        return this.deleted && canRestore();
     }
 
     @Override
