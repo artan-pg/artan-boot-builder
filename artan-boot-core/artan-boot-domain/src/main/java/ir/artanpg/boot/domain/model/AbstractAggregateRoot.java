@@ -152,7 +152,7 @@ public abstract class AbstractAggregateRoot<I extends Identifier<?>> implements 
      * @see AbstractAggregateRoot
      * @since 0.1.0
      */
-    protected abstract static class AbstractBuilder<I extends Identifier<?>, C extends AbstractAggregateRoot<I>,
+    public abstract static class AbstractBuilder<I extends Identifier<?>, C extends AbstractAggregateRoot<I>,
             B extends AbstractBuilder<I, C, B>> {
 
         /**

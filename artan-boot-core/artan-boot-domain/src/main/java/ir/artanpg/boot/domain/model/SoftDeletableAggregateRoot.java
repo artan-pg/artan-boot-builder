@@ -44,10 +44,10 @@ import ir.artanpg.boot.domain.exception.BusinessValidationException;
  *
  * <h2>Implementation Guidelines</h2>
  * <ul>
- *   <li><b>State Transition:</b> The transition to "deleted" state should be
- *      performed through a business method (e.g., {@code delete()}) that
- *      applies a domain event (e.g., {@code AggregateDeletedEvent}) to
- *      maintain consistency with the {@code apply} pattern.</li>
+ *   <li><b>Domain Event:</b> Implementations must register a domain event
+ *       when the deletion/restoration state changes, typically by
+ *       overriding {@link #onMarkedAsDeleted()} / {@link #onRestored()} in
+ *       the abstract base classes.</li>
  *   <li><b>Immutability:</b> Once deleted, an aggregate should not be modified
  *      except through a restoration process.</li>
  *   <li><b>Query Filtering:</b> The infrastructure layer (repositories) must
@@ -113,10 +113,6 @@ public interface SoftDeletableAggregateRoot<I extends Identifier<?>> extends Agg
      *      aggregate is already deleted, calling this method again should have
      *      no effect and should not throw an exception. This allows safe retry
      *      mechanisms and concurrent operations.</li>
-     *   <li><b>Domain Event:</b> It is strongly recommended to implement this
-     *      method using the {@code apply} pattern with a domain event. This
-     *      ensures consistency with event sourcing principles and maintains a
-     *      complete audit trail of state changes.</li>
      *   <li><b>Business Validation:</b> Before marking as deleted, the
      *      aggregate should validate that deletion is allowed according to
      *      business rules. If deletion is not permitted, this method should
@@ -198,4 +194,35 @@ public interface SoftDeletableAggregateRoot<I extends Identifier<?>> extends Agg
      * @see #markAsDeleted()
      */
     void restore();
+
+    /**
+     * Hook invoked exactly once when this aggregate transitions from a
+     * non-deleted to a deleted state via {@code #markAsDeleted()}.
+     *
+     * <p>The default implementation does nothing. Subclasses may override
+     * this method to record additional deletion metadata without duplicating
+     * the idempotency guard.
+     *
+     * @see #markAsDeleted()
+     * @see #restore()
+     */
+    default void onMarkedAsDeleted() {
+        // Hook method - override in subclasses to add custom behavior
+    }
+
+    /**
+     * Hook invoked exactly once after {@code #restore()} clears the deletion
+     * flag.
+     *
+     * <p>The default implementation does nothing. Subclasses may override this
+     * method to clear any stale deletion-related state so that a subsequent
+     * call to {@code #markAsDeleted()} records fresh deletion information
+     * instead of silently keeping outdated values.
+     *
+     * @see #restore()
+     * @see #markAsDeleted()
+     */
+    default void onRestored() {
+        // Hook method - override in subclasses to add custom behavior
+    }
 }

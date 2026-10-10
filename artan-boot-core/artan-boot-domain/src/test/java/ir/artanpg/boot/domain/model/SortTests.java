@@ -451,6 +451,69 @@ class SortTests {
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ERROR_SORT_NULL);
         }
+
+        @Test
+        @DisplayName("should return this when incoming sort is empty")
+        void and_ShouldReturnThis_WhenIncomingSortIsEmpty() {
+            // given
+            Sort initial = Sort.asc(PROPERTY_NAME).andDesc(PROPERTY_AGE);
+            Sort emptySort = Sort.unsorted();
+
+            // when
+            Sort result = initial.and(emptySort);
+
+            // then
+            then(result)
+                    .as("Should return the same instance when incoming sort is empty")
+                    .isSameAs(initial);
+            then(result.size())
+                    .as("Result should contain original orders")
+                    .isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should return incoming sort when this is empty")
+        void and_ShouldReturnIncomingSort_WhenThisIsEmpty() {
+            // given
+            Sort emptySort = Sort.unsorted();
+            Sort incoming = Sort.asc(PROPERTY_NAME).andDesc(PROPERTY_AGE);
+
+            // when
+            Sort result = emptySort.and(incoming);
+
+            // then
+            then(result)
+                    .as("Should return the incoming sort instance when this is empty")
+                    .isSameAs(incoming);
+            then(result.size())
+                    .as("Result should contain incoming orders")
+                    .isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should remove duplicate property from this and append incoming at the end")
+        void and_ShouldRemoveDuplicateProperty_WhenPropertyExistsInBothSorts() {
+            // given
+            Sort first = Sort.asc(PROPERTY_NAME, PROPERTY_AGE);
+            Sort second = Sort.desc(PROPERTY_NAME);
+
+            // when
+            Sort result = first.and(second);
+
+            // then
+            then(result.size())
+                    .as("Result should have two orders (age from first, name from second)")
+                    .isEqualTo(2);
+            then(result.stream().toList())
+                    .as("Order should be preserved: age first, then name")
+                    .containsExactly(
+                            new Sort.Order(PROPERTY_AGE, Sort.Direction.ASC),
+                            new Sort.Order(PROPERTY_NAME, Sort.Direction.DESC)
+                    );
+            then(result.getDirection(PROPERTY_NAME))
+                    .as("Latest direction for duplicated property should win")
+                    .isEqualTo(Sort.Direction.DESC);
+        }
     }
 
     @Nested
@@ -558,6 +621,83 @@ class SortTests {
     }
 
     @Nested
+    @DisplayName("stream")
+    class Stream {
+
+        @Test
+        @DisplayName("should return empty stream when sort is empty")
+        void stream_ShouldReturnEmptyStream_WhenSortIsEmpty() {
+            // given
+            Sort sort = Sort.unsorted();
+
+            // when
+            var stream = sort.stream();
+
+            // then
+            then(stream)
+                    .as("Stream should not be null")
+                    .isNotNull()
+                    .as("Stream should be empty")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("should return stream of orders when sort has orders")
+        void stream_ShouldReturnStreamOfOrders_WhenSortHasOrders() {
+            // given
+            Sort sort = Sort.asc(PROPERTY_NAME).andDesc(PROPERTY_AGE);
+
+            // when
+            var stream = sort.stream();
+
+            // then
+            then(stream)
+                    .as("Stream should not be null")
+                    .isNotNull()
+                    .as("Stream should have two elements")
+                    .hasSize(2)
+                    .as("Stream should contain the correct orders")
+                    .containsExactly(
+                            new Sort.Order(PROPERTY_NAME, Sort.Direction.ASC),
+                            new Sort.Order(PROPERTY_AGE, Sort.Direction.DESC)
+                    );
+        }
+
+        @Test
+        @DisplayName("should preserve priority order of properties")
+        void stream_ShouldPreservePriorityOrder_WhenCalled() {
+            // given
+            Sort sort = Sort.asc(PROPERTY_NAME, PROPERTY_AGE, PROPERTY_EMAIL);
+
+            // when
+            var properties = sort.stream().map(Sort.Order::property).toList();
+
+            // then
+            then(properties)
+                    .as("Properties should be in priority order")
+                    .containsExactly(PROPERTY_NAME, PROPERTY_AGE, PROPERTY_EMAIL);
+        }
+
+        @Test
+        @DisplayName("should deduplicate properties when same property is provided multiple times")
+        void stream_ShouldDeduplicateProperties_WhenPropertyIsDuplicated() {
+            // given
+            Sort sort = Sort.asc(PROPERTY_NAME, PROPERTY_NAME);
+
+            // when
+            var orders = sort.stream().toList();
+
+            // then
+            then(orders)
+                    .as("Stream should deduplicate properties")
+                    .hasSize(1)
+                    .containsExactly(
+                            new Sort.Order(PROPERTY_NAME, Sort.Direction.ASC)
+                    );
+        }
+    }
+
+    @Nested
     @DisplayName("getProperties")
     class GetProperties {
 
@@ -621,6 +761,18 @@ class SortTests {
     @Nested
     @DisplayName("contains")
     class Contains {
+
+        @Test
+        @DisplayName("should return false when property is null")
+        void contains_ShouldReturnFalse_WhenPropertyIsNull() {
+            // given
+            Sort sort = Sort.asc(PROPERTY_NAME);
+
+            // when & then
+            then(sort.contains(null))
+                    .as("Should contain the property")
+                    .isFalse();
+        }
 
         @Test
         @DisplayName("should return true when property exists")

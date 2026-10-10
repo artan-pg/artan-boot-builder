@@ -138,6 +138,7 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
             this.deletedBy = deletedBy;
             this.deletedDate = Instant.now();
             markAsModified(deletedBy);
+            onMarkedAsDeleted();
         }
     }
 
@@ -153,6 +154,7 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
         this.deletedBy = null;
         this.deletedDate = null;
         markAsModified(SYSTEM_PRINCIPAL);
+        onRestored();
     }
 
     @Override

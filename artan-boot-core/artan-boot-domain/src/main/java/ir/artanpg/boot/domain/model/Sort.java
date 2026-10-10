@@ -21,18 +21,27 @@ import org.jspecify.annotations.Nullable;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A value object representing sorting criteria for queries.
  *
- * <p>This class uses a {@link LinkedHashMap} to preserve the order of sort
- * fields and is immutable. Any modification returns a new instance of Sort.
+ * <p>The sort criteria are stored as an ordered, immutable list of
+ * {@link Order} entries (property + direction). Unlike a plain map-based
+ * representation, this model preserves the exact order of the fields.
+ *
+ * <p>Any modification returns a new {@code Sort} instance.
  *
  * <p><b>Thread Safety:</b> This class is immutable and thread-safe.
  *
@@ -49,19 +58,19 @@ public class Sort implements Serializable {
     private static final String PROPERTY_NULL_EXCEPTION = "The property cannot be null or blank";
     private static final String PROPERTIES_NULL_EXCEPTION = "The properties cannot be null or blank";
 
+    private static final float DEFAULT_SET_COLLECTION_SIZE = 0.75f;
     /**
-     * The map of sort orders where the key is the property name and the value
-     * is the sort direction.
+     * The ordered, immutable list of sort orders.
      */
-    private final Map<String, Direction> orders;
+    private final List<Order> orders;
 
     /**
-     * Creates a Sort with ascending order for a single field.
+     * Creates a Sort from the given ordered list of sort orders.
      *
-     * @param orders mapping of fields to sort directions
+     * @param orders the ordered sort orders
      */
-    private Sort(Map<String, Direction> orders) {
-        this.orders = Collections.unmodifiableMap(orders);
+    private Sort(List<Order> orders) {
+        this.orders = List.copyOf(orders);
     }
 
     /**
@@ -70,7 +79,7 @@ public class Sort implements Serializable {
      * @return an unsorted {@link Sort} instance
      */
     public static Sort unsorted() {
-        return new Sort(new LinkedHashMap<>());
+        return new Sort(Collections.emptyList());
     }
 
     /**
@@ -81,8 +90,8 @@ public class Sort implements Serializable {
      * @throws DomainException if property is {@code null} or {@code blank}
      */
     public static Sort asc(String property) {
-        if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-        return new Sort(Collections.singletonMap(property, Direction.ASC));
+        validateProperty(property);
+        return new Sort(List.of(new Order(property, Direction.ASC)));
     }
 
     /**
@@ -96,16 +105,7 @@ public class Sort implements Serializable {
      * @throws DomainException if properties is {@code null} or any property is {@code null} or {@code blank}
      */
     public static Sort asc(String... properties) {
-        if (properties == null) throw new DomainException(PROPERTIES_NULL_EXCEPTION);
-        if (properties.length == 0) return Sort.unsorted();
-
-        Map<String, Direction> map = new LinkedHashMap<>();
-        for (String property : properties) {
-            if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-            map.put(property, Direction.ASC);
-        }
-
-        return new Sort(map);
+        return of(properties, Direction.ASC);
     }
 
     /**
@@ -116,8 +116,8 @@ public class Sort implements Serializable {
      * @throws DomainException if property is {@code null} or {@code blank}
      */
     public static Sort desc(String property) {
-        if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-        return new Sort(Collections.singletonMap(property, Direction.DESC));
+        validateProperty(property);
+        return new Sort(List.of(new Order(property, Direction.DESC)));
     }
 
     /**
@@ -131,16 +131,34 @@ public class Sort implements Serializable {
      * @throws DomainException if properties is {@code null} or any property is {@code null} or {@code blank}
      */
     public static Sort desc(String... properties) {
+        return of(properties, Direction.DESC);
+    }
+
+    /**
+     * Builds an ordered {@link Sort} from the given properties, all with the
+     * same direction, preserving the iteration order of the varargs array.
+     *
+     * @param properties the field names (in priority order)
+     * @param direction  the direction to apply to every field
+     * @return a new {@link Sort} instance
+     * @throws DomainException if properties is {@code null} or any property is {@code null} or {@code blank}
+     */
+    private static Sort of(String[] properties, Direction direction) {
         if (properties == null) throw new DomainException(PROPERTIES_NULL_EXCEPTION);
         if (properties.length == 0) return Sort.unsorted();
 
-        Map<String, Direction> map = new LinkedHashMap<>();
+        List<Order> list = new ArrayList<>(properties.length);
+        Set<String> uniqueProperties =
+                LinkedHashSet.newLinkedHashSet((int) (properties.length / DEFAULT_SET_COLLECTION_SIZE) + 1);
+
         for (String property : properties) {
-            if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-            map.put(property, Direction.DESC);
+            if (uniqueProperties.add(property)) {
+                validateProperty(property);
+                list.add(new Order(property, direction));
+            }
         }
 
-        return new Sort(map);
+        return new Sort(list);
     }
 
     /**
@@ -154,12 +172,7 @@ public class Sort implements Serializable {
      * @throws DomainException if property is {@code null} or {@code blank}
      */
     public Sort andAsc(String property) {
-        if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-
-        Map<String, Direction> newMap = new LinkedHashMap<>(this.orders);
-        newMap.put(property, Direction.ASC);
-
-        return new Sort(newMap);
+        return and(Sort.asc(property));
     }
 
     /**
@@ -173,12 +186,7 @@ public class Sort implements Serializable {
      * @throws DomainException if property is {@code null} or {@code blank}
      */
     public Sort andDesc(String property) {
-        if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
-
-        Map<String, Direction> newMap = new LinkedHashMap<>(this.orders);
-        newMap.put(property, Direction.DESC);
-
-        return new Sort(newMap);
+        return and(Sort.desc(property));
     }
 
     /**
@@ -186,10 +194,9 @@ public class Sort implements Serializable {
      *
      * <p>This method is immutable and returns a new Sort instance containing
      * all sorting criteria from both Sorts. If a field exists in both Sorts,
-     * the direction from the provided Sort will override the current one.
-     *
-     * <p>The order of fields will be: fields from this Sort first, followed by
-     * fields from the provided Sort.
+     * the previous occurrence is removed and the incoming one is appended at
+     * the end, so the latest direction and position win (consistent with the
+     * previous map-based contract while preserving order semantics).
      *
      * @param sort the Sort to combine with
      * @return a new {@link Sort} instance containing all sorting criteria
@@ -197,9 +204,18 @@ public class Sort implements Serializable {
      */
     public Sort and(Sort sort) {
         if (sort == null) throw new DomainException("The sort must not be null");
+        if (sort.isEmpty()) return this;
+        if (this.isEmpty()) return sort;
 
-        Map<String, Direction> combined = new LinkedHashMap<>(this.orders);
-        combined.putAll(sort.orders);
+        Set<String> incomingProperties = sort.orders.stream()
+                .map(Order::property)
+                .collect(Collectors.toSet());
+
+        List<Order> combined = new ArrayList<>(this.orders.size() + sort.orders.size());
+        for (Order existing : this.orders) {
+            if (!incomingProperties.contains(existing.property())) combined.add(existing);
+        }
+        combined.addAll(sort.orders);
 
         return new Sort(combined);
     }
@@ -207,37 +223,71 @@ public class Sort implements Serializable {
     /**
      * Gets the sort direction for a specific field.
      *
+     * <p>If the field occurs more than once, the last occurrence wins, which
+     * matches the effective behavior of {@link #and(Sort)} overriding.
+     *
      * @param property the field name to get the direction for
-     * @return the direction of the field
+     * @return the direction of the field, or {@code null} if absent / {@code null} input
      */
     @Nullable
     public Direction getDirection(String property) {
         if (property == null) return null;
-        return this.orders.get(property);
+
+        Direction direction = null;
+        for (Order order : this.orders) {
+            if (order.property().equals(property)) {
+                direction = order.direction();
+            }
+        }
+        return direction;
     }
 
     /**
      * Gets the set of all field names in this Sort.
      *
-     * @return an unmodifiable Set of field names
+     * @return an unmodifiable Set of distinct field names
      */
     public Set<String> getProperties() {
-        return this.orders.keySet();
+        LinkedHashSet<String> properties = this.orders.stream()
+                .map(Order::property)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return Collections.unmodifiableSet(properties);
     }
 
     /**
-     * Gets the internal map of field-direction pairs.
+     * Gets the sorting criteria as an ordered, unmodifiable view mapping each
+     * property to its direction.
+     *
+     * <p>The returned map preserves the priority order of the criteria. When
+     * the same property occurs more than once, the last occurrence determines
+     * the mapped value.
      *
      * @return an unmodifiable Map of field names to their directions
      */
     public Map<String, Direction> getOrders() {
-        return this.orders;
+        Map<String, Direction> map = new LinkedHashMap<>();
+        for (Order order : this.orders) {
+            map.put(order.property(), order.direction());
+        }
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Returns a sequential stream of the sort orders in priority order.
+     *
+     * <p>This is the canonical way to iterate the full criteria, without
+     * losing ordering information.
+     *
+     * @return a stream of {@link Order} entries in priority order
+     */
+    public Stream<Order> stream() {
+        return this.orders.stream();
     }
 
     /**
      * Gets the number of sorting criteria in this Sort.
      *
-     * @return the number of fields with sorting criteria
+     * @return the number of order entries (duplicated properties counted)
      */
     public int size() {
         return this.orders.size();
@@ -259,7 +309,18 @@ public class Sort implements Serializable {
      * @return {@code true}, if the field exists in this Sort, {@code false} otherwise
      */
     public boolean contains(String property) {
-        return this.orders.containsKey(property);
+        if (property == null) return false;
+        return this.orders.stream().anyMatch(order -> order.property().equals(property));
+    }
+
+    /**
+     * Validates that the given property is neither {@code null} nor blank.
+     *
+     * @param property the property to validate
+     * @throws DomainException if property is {@code null} or {@code blank}
+     */
+    private static void validateProperty(String property) {
+        if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
     }
 
     @Override
@@ -279,8 +340,8 @@ public class Sort implements Serializable {
         if (this.orders.isEmpty()) return Sort.class.getSimpleName() + "[empty]";
 
         StringJoiner joiner = new StringJoiner(", ", Sort.class.getSimpleName() + "[", "]");
-        for (Map.Entry<String, Direction> entry : this.orders.entrySet()) {
-            joiner.add("property=" + entry.getKey() + ", direction=" + entry.getValue());
+        for (Order order : this.orders) {
+            joiner.add("property=" + order.property() + ", direction=" + order.direction());
         }
 
         return joiner.toString();
@@ -332,6 +393,42 @@ public class Sort implements Serializable {
          */
         public boolean isDescending() {
             return this == DESC;
+        }
+    }
+
+    /**
+     * An immutable pair of a property name and its sort direction.
+     *
+     * @param property  the field name to sort by
+     * @param direction the sort direction for the field
+     * @author Mohammad Yazdian
+     * @since 0.2.0
+     */
+    public record Order(String property, Direction direction) implements Serializable {
+
+        @Serial
+        private static final long serialVersionUID = 7300392721151295599L;
+
+        /**
+         * Compact constructor validating the order entry.
+         *
+         * @param property  the field name to sort by
+         * @param direction the sort direction for the field
+         * @throws DomainException if property is {@code null} or {@code blank} or direction is {@code null}
+         */
+        public Order {
+            if (property == null || property.isBlank()) throw new DomainException(PROPERTY_NULL_EXCEPTION);
+            if (direction == null) throw new DomainException("The direction cannot be null");
+        }
+
+        /**
+         * Converts this order into a two-element map entry, useful for
+         * interoperability with map-based persistence/adapter layers.
+         *
+         * @return a map entry of property to direction
+         */
+        public Map.Entry<String, Direction> toEntry() {
+            return new AbstractMap.SimpleImmutableEntry<>(this.property, this.direction);
         }
     }
 }

@@ -626,12 +626,12 @@ class SoftDeletableAggregateRootTests {
         }
 
         @Override
-        protected void onMarkedAsDeleted() {
+        public void onMarkedAsDeleted() {
             this.markedAsDeletedHookCount++;
         }
 
         @Override
-        protected void onRestored() {
+        public void onRestored() {
             this.restoredHookCount++;
         }
 

@@ -120,7 +120,7 @@ public abstract class AbstractAggregateMember<I extends Identifier<?>> implement
      * @see AbstractAggregateMember
      * @since 0.1.0
      */
-    protected abstract static class AbstractBuilder<I extends Identifier<?>, C extends AbstractAggregateMember<I>,
+    public abstract static class AbstractBuilder<I extends Identifier<?>, C extends AbstractAggregateMember<I>,
             B extends AbstractBuilder<I, C, B>> {
 
         private I id;
