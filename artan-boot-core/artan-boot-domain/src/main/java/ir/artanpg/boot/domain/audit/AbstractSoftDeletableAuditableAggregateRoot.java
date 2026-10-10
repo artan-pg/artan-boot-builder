@@ -19,8 +19,11 @@ package ir.artanpg.boot.domain.audit;
 import ir.artanpg.boot.domain.exception.BusinessValidationException;
 import ir.artanpg.boot.domain.exception.DomainException;
 import ir.artanpg.boot.domain.model.Identifier;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.io.Serial;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.StringJoiner;
 
@@ -67,6 +70,8 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
     @Serial
     private static final long serialVersionUID = 5029384716250483917L;
 
+    private static final String DELETED_DATE_NULL_EXCEPTION_MSG = "The deletedDate cannot be null";
+
     /**
      * Flag indicating whether this domain has been soft-deleted.
      */
@@ -81,6 +86,23 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
      * The timestamp when the soft deletion occurred.
      */
     private Instant deletedDate;
+
+    /**
+     * Constructs a new soft-deletable auditable aggregate root with the
+     * specified identifier, creator and creation date.
+     *
+     * <p>Delegates to the parent auditable constructor and initializes
+     * the deletion flag to {@code false}, indicating the entity is
+     * active upon creation.
+     *
+     * @param identifier  the unique identifier of the aggregate
+     * @param createdBy   the identifier of the user who created the aggregate
+     * @param createdDate the clock representing the creation time
+     */
+    protected AbstractSoftDeletableAuditableAggregateRoot(I identifier, String createdBy, Clock createdDate) {
+        super(identifier, createdBy, createdDate);
+        this.deleted = false;
+    }
 
     /**
      * Constructs a new instance with identifier and creation info.
@@ -134,10 +156,11 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
     public void markAsDeleted(String deletedBy) {
         if (!this.deleted) {
             validateDeletedBy(deletedBy);
+            Instant deletionTime = Instant.now();
+            validateDeletedDate(deletionTime);
             this.deleted = true;
             this.deletedBy = deletedBy;
-            this.deletedDate = Instant.now();
-            markAsModified(deletedBy);
+            this.deletedDate = deletionTime;
             onMarkedAsDeleted();
         }
     }
@@ -173,10 +196,66 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
      * @param deletedBy the value to validate
      * @throws DomainException if deletedBy is {@code null} or {@code blank}
      */
-    protected static void validateDeletedBy(String deletedBy) {
+    protected static void validateDeletedBy(@NonNull String deletedBy) {
         if (deletedBy == null || deletedBy.isBlank()) {
             throw new DomainException("The deletedBy cannot be null or blank");
         }
+    }
+
+    /**
+     * Validates that the deleted date is not null and not in the
+     * future, using the current system time as reference.
+     *
+     * @param deletedDate the date to validate
+     * @throws DomainException if deletedDate is {@code null} or after the current time
+     */
+    protected static void validateDeletedDate(@Nullable Clock deletedDate) {
+        if (deletedDate == null) throw new DomainException(DELETED_DATE_NULL_EXCEPTION_MSG);
+        validateDeletedDate(deletedDate.instant(), Instant.now());
+    }
+
+    /**
+     * Validates that the deleted date is not null and not in the
+     * future, using a custom reference clock.
+     *
+     * @param deletedDate  the date to validate
+     * @param referenceNow the reference clock for "now"
+     * @throws DomainException if deletedDate is {@code null} or after referenceNow
+     */
+    protected static void validateDeletedDate(@NonNull Clock deletedDate, @Nullable Clock referenceNow) {
+        if (deletedDate == null) throw new DomainException(DELETED_DATE_NULL_EXCEPTION_MSG);
+
+        Clock now = referenceNow == null ? Clock.systemUTC() : referenceNow;
+        validateDeletedDate(deletedDate.instant(), now.instant());
+    }
+
+    /**
+     * Validates that the deleted date is not null and not in the
+     * future, using the current system time as reference.
+     *
+     * @param deletedDate the date to validate
+     * @throws DomainException if deletedDate is {@code null} or after the current time
+     */
+    protected static void validateDeletedDate(Instant deletedDate) {
+        validateDeletedDate(deletedDate, Instant.now());
+    }
+
+    /**
+     * Validates that the deleted date is not null and not in the
+     * future, using a custom reference instant.
+     *
+     * <p>This is the core validation method that all other
+     * overloads delegate to.
+     *
+     * @param deletedDate  the date to validate
+     * @param referenceNow the reference instant for "now"
+     * @throws DomainException if deletedDate is {@code null} or after referenceNow
+     */
+    protected static void validateDeletedDate(@NonNull Instant deletedDate, @Nullable Instant referenceNow) {
+        if (deletedDate == null) throw new DomainException(DELETED_DATE_NULL_EXCEPTION_MSG);
+
+        Instant now = referenceNow == null ? Instant.now() : referenceNow;
+        if (deletedDate.isAfter(now)) throw new DomainException("The deletedDate cannot be after now");
     }
 
     @Override
@@ -249,6 +328,17 @@ public abstract class AbstractSoftDeletableAuditableAggregateRoot<I extends Iden
          */
         public B deletedDate(final Instant deletedDate) {
             this.deletedDate = deletedDate;
+            return this.self();
+        }
+
+        /**
+         * Sets the deletion timestamp.
+         *
+         * @param deletedDate the deletion timestamp
+         * @return this builder for method chaining
+         */
+        public B deletedDate(final Clock deletedDate) {
+            this.deletedDate = (deletedDate == null ? Clock.systemUTC() : deletedDate).instant();
             return this.self();
         }
     }

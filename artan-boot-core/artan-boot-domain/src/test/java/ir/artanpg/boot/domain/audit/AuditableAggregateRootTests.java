@@ -24,7 +24,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -142,6 +144,47 @@ class AuditableAggregateRootTests {
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ERROR_CREATED_DATE_AFTER_NOW);
         }
+
+        @Test
+        @DisplayName("should set createdDate from Clock when Clock constructor is used")
+        void constructor_ShouldSetCreatedDateFromClock_WhenClockProvided() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Instant fixed = Instant.parse("2026-01-15T10:00:00Z");
+            Clock clock = Clock.fixed(fixed, ZoneOffset.UTC);
+
+            // when
+            TestAuditableAggregate aggregate = new TestAuditableAggregate(id, USER_1, clock);
+
+            // then
+            then(aggregate.getCreatedBy())
+                    .as("CreatedBy should match the provided value")
+                    .isEqualTo(USER_1);
+            then(aggregate.getCreatedDate())
+                    .as("CreatedDate should match the fixed Clock instant")
+                    .isEqualTo(fixed);
+            then(aggregate.getLastModifiedBy())
+                    .as("LastModifiedBy should be null initially")
+                    .isNull();
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should be null initially")
+                    .isNull();
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should throw DomainException when Clock createdDate is null")
+        void constructor_ShouldThrow_WhenClockCreatedDateIsNull() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Clock nullClock = null;
+
+            // when & then
+            thenThrownBy(() -> new TestAuditableAggregate(id, USER_1, nullClock))
+                    .as("Should throw DomainException when Clock createdDate is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_NULL);
+        }
     }
 
     @Nested
@@ -229,16 +272,15 @@ class AuditableAggregateRootTests {
                     .isBeforeOrEqualTo(Instant.now());
         }
 
-        @SuppressWarnings("ConstantValue")
+        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("should throw DomainException when modifiedBy is null")
         void markAsModified_ShouldThrowDomainException_WhenModifiedByIsNull() {
             // given
             TestAuditableAggregate aggregate = createAggregate();
-            String nullModifiedBy = null;
 
             // when & then
-            thenThrownBy(() -> aggregate.markAsModified(nullModifiedBy))
+            thenThrownBy(() -> aggregate.markAsModified(null))
                     .as("Should throw DomainException when modifiedBy is null")
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ERROR_LAST_MODIFIED_BY_NULL_OR_BLANK);
@@ -283,6 +325,116 @@ class AuditableAggregateRootTests {
             then(aggregate.getLastModifiedBy())
                     .as("Last modified by should be updated to latest")
                     .isEqualTo(USER_3);
+        }
+
+        @Test
+        @DisplayName("should set lastModifiedDate on first call when only modifiedBy is provided")
+        void markAsModified_ShouldSetDate_WhenCalledFirstTimeWithOnlyModifiedBy() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should be null before first modification")
+                    .isNull();
+
+            // when
+            aggregate.markAsModified(USER_2);
+
+            // then
+            then(aggregate.getLastModifiedBy())
+                    .as("LastModifiedBy should be updated to the provided user")
+                    .isEqualTo(USER_2);
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should be set on first markAsModified call")
+                    .isNotNull()
+                    .isBeforeOrEqualTo(Instant.now());
+        }
+
+        @Test
+        @DisplayName("should use explicit Instant when markAsModified(String, Instant) is called")
+        void markAsModified_ShouldUseExplicitInstant_WhenInstantProvided() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+            Instant explicit = Instant.parse("2026-03-01T12:00:00Z");
+
+            // when
+            aggregate.markAsModified(USER_2, explicit);
+
+            // then
+            then(aggregate.getLastModifiedBy())
+                    .as("LastModifiedBy should match the provided user")
+                    .isEqualTo(USER_2);
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should match the explicit Instant")
+                    .isEqualTo(explicit);
+        }
+
+        @Test
+        @DisplayName("should use Clock instant when markAsModified(String, Clock) is called")
+        void markAsModified_ShouldUseClockInstant_WhenClockProvided() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+            Instant fixed = Instant.parse("2026-04-01T08:30:00Z");
+            Clock clock = Clock.fixed(fixed, ZoneOffset.UTC);
+
+            // when
+            aggregate.markAsModified(USER_2, clock);
+
+            // then
+            then(aggregate.getLastModifiedBy())
+                    .as("LastModifiedBy should match the provided user")
+                    .isEqualTo(USER_2);
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should match the fixed Clock instant")
+                    .isEqualTo(fixed);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should fall back to system UTC when Clock is null")
+        void markAsModified_ShouldFallBackToSystemUtc_WhenClockIsNull() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+            Clock nullClock = null;
+
+            // when
+            aggregate.markAsModified(USER_2, nullClock);
+
+            // then
+            then(aggregate.getLastModifiedBy())
+                    .as("LastModifiedBy should match the provided user")
+                    .isEqualTo(USER_2);
+            then(aggregate.getLastModifiedDate())
+                    .as("LastModifiedDate should fall back to system UTC when Clock is null")
+                    .isNotNull()
+                    .isBeforeOrEqualTo(Instant.now());
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when explicit Instant is null")
+        void markAsModified_ShouldThrow_WhenExplicitInstantIsNull() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+
+            // when & then
+            thenThrownBy(() -> aggregate.markAsModified(USER_2, (Instant) null))
+                    .as("Should throw DomainException when explicit Instant is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should throw when explicit Instant is in the future")
+        void markAsModified_ShouldThrow_WhenExplicitInstantIsInTheFuture() {
+            // given
+            TestAuditableAggregate aggregate = createAggregate();
+            Instant future = Instant.now().plus(1, ChronoUnit.DAYS);
+
+            // when & then
+            thenThrownBy(() -> aggregate.markAsModified(USER_2, future))
+                    .as("Should throw DomainException when explicit Instant is in the future")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_AFTER_NOW);
         }
     }
 
@@ -361,16 +513,15 @@ class AuditableAggregateRootTests {
                     .doesNotThrowAnyException();
         }
 
-        @SuppressWarnings({"ConstantValue", "DataFlowIssue"})
+        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("should throw DomainException when lastModifiedDate is null")
         void validateLastModifiedDate_ShouldThrowDomainException_WhenLastModifiedDateIsNull() {
             // given
-            Instant nullLastModifiedDate = null;
 
             // when & then
             thenThrownBy(() ->
-                    AbstractAuditableAggregateRoot.validateLastModifiedDate(nullLastModifiedDate))
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate((Instant) null))
                     .as("Should throw DomainException when lastModifiedDate is null")
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
@@ -389,6 +540,349 @@ class AuditableAggregateRootTests {
                     .as("Should throw when lastModifiedDate is in the future")
                     .isInstanceOf(DomainException.class)
                     .hasMessage(ERROR_LAST_MODIFIED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should accept valid Clock when using single-arg lastModifiedDate Clock overload")
+        void validateLastModifiedDate_ShouldAcceptValidClock_WhenSingleArgClock() {
+            // given
+            Clock past = Clock.fixed(Instant.now().minus(1, ChronoUnit.HOURS), ZoneOffset.UTC);
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(past))
+                    .as("Should not throw for a valid past lastModifiedDate Clock")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should throw when lastModifiedDate Clock is null (single-arg Clock overload)")
+        void validateLastModifiedDate_ShouldThrow_WhenSingleArgClockIsNull() {
+            // given
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate((Clock) null))
+                    .as("Should throw DomainException when lastModifiedDate Clock is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should throw when single-arg lastModifiedDate Clock is in the future")
+        void validateLastModifiedDate_ShouldThrow_WhenSingleArgClockIsInTheFuture() {
+            // given
+            Clock future = Clock.fixed(Instant.now().plus(1, ChronoUnit.DAYS), ZoneOffset.UTC);
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(future))
+                    .as("Should throw DomainException when lastModifiedDate Clock is in the future")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should accept when createdDate Clock is before reference Clock")
+        void validateCreatedDate_ShouldAccept_WhenClockBeforeReferenceClock() {
+            // given
+            Clock created = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(created, reference))
+                    .as("Should not throw when createdDate Clock is before reference Clock")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should throw when createdDate Clock is after reference Clock")
+        void validateCreatedDate_ShouldThrow_WhenClockAfterReferenceClock() {
+            // given
+            Clock created = Clock.fixed(Instant.parse("2026-12-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(created, reference))
+                    .as("Should throw DomainException when createdDate Clock is after reference Clock")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should throw when createdDate Clock is null (two-arg Clock)")
+        void validateCreatedDate_ShouldThrow_WhenTwoArgCreatedClockIsNull() {
+            // given
+            Clock reference = Clock.systemUTC();
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(null, reference))
+                    .as("Should throw DomainException when createdDate Clock is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_NULL);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should treat null reference Clock as system UTC for createdDate")
+        void validateCreatedDate_ShouldUseSystemUtc_WhenReferenceClockIsNull() {
+            // given
+            Clock past = Clock.fixed(Instant.now().minus(1, ChronoUnit.DAYS), ZoneOffset.UTC);
+            Clock nullReference = null;
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(past, nullReference))
+                    .as("Should not throw when reference Clock is null and createdDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should use system now when reference Instant is null for createdDate")
+        void validateCreatedDate_ShouldUseSystemNow_WhenReferenceInstantIsNull() {
+            // given
+            Instant past = Instant.now().minus(1, ChronoUnit.DAYS);
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(past, null))
+                    .as("Should not throw when reference Instant is null and createdDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should use provided reference Instant when non-null for createdDate")
+        void validateCreatedDate_ShouldUseProvidedReference_WhenReferenceInstantIsNonNull() {
+            // given
+            Instant created = Instant.parse("2026-01-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-06-01T00:00:00Z");
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(created, reference))
+                    .as("Should not throw when createdDate is before non-null reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should reject createdDate after non-null reference Instant")
+        void validateCreatedDate_ShouldThrow_WhenCreatedAfterNonNullReference() {
+            // given
+            Instant created = Instant.parse("2026-12-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-01-01T00:00:00Z");
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(created, reference))
+                    .as("Should throw DomainException when createdDate is after non-null reference Instant")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should throw when createdDate is null even if reference Instant is null")
+        void validateCreatedDate_ShouldThrow_WhenCreatedInstantIsNullAndReferenceIsNull() {
+            // given
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(null, (Instant) null))
+                    .as("Should throw DomainException when createdDate Instant is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should accept when createdDate equals non-null reference Instant")
+        void validateCreatedDate_ShouldAccept_WhenCreatedEqualsReference() {
+            // given
+            Instant same = Instant.parse("2026-03-15T12:00:00Z");
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(same, same))
+                    .as("Should not throw when createdDate equals reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should throw when both createdDate and reference Clocks are null")
+        void validateCreatedDate_ShouldThrow_WhenBothClocksAreNull() {
+            // given
+            Clock nullCreated = null;
+            Clock nullReference = null;
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateCreatedDate(nullCreated, nullReference))
+                    .as("Should throw DomainException when both createdDate and reference Clocks are null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_CREATED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should accept when lastModifiedDate Clock is before reference Clock")
+        void validateLastModifiedDate_ShouldAccept_WhenClockBeforeReferenceClock() {
+            // given
+            Clock modified = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(modified, reference))
+                    .as("Should not throw when lastModifiedDate Clock is before reference Clock")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should throw when lastModifiedDate Clock is after reference Clock")
+        void validateLastModifiedDate_ShouldThrow_WhenClockAfterReferenceClock() {
+            // given
+            Clock modified = Clock.fixed(Instant.parse("2026-12-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(modified, reference))
+                    .as("Should throw DomainException when lastModifiedDate Clock is after reference Clock")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should throw when lastModifiedDate Clock is null (two-arg Clock)")
+        void validateLastModifiedDate_ShouldThrow_WhenTwoArgModifiedClockIsNull() {
+            // given
+            Clock reference = Clock.systemUTC();
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(null, reference))
+                    .as("Should throw DomainException when lastModifiedDate Clock is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should treat null reference Clock as system UTC for lastModifiedDate")
+        void validateLastModifiedDate_ShouldUseSystemUtc_WhenReferenceClockIsNull() {
+            // given
+            Clock past = Clock.fixed(Instant.now().minus(1, ChronoUnit.HOURS), ZoneOffset.UTC);
+            Clock nullReference = null;
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(past, nullReference))
+                    .as("Should not throw when reference Clock is null and lastModifiedDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when both lastModifiedDate and reference Clocks are null")
+        void validateLastModifiedDate_ShouldThrow_WhenBothClocksAreNull() {
+            // given
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot
+                            .validateLastModifiedDate(null, (Clock) null))
+                    .as("Should throw DomainException when both lastModifiedDate and reference Clocks are null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should accept when lastModifiedDate Instant equals reference Instant")
+        void validateLastModifiedDate_ShouldAccept_WhenInstantEqualsReference() {
+            // given
+            Instant same = Instant.parse("2026-03-15T12:00:00Z");
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(same, same))
+                    .as("Should not throw when lastModifiedDate equals reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should accept when lastModifiedDate Instant is before reference Instant")
+        void validateLastModifiedDate_ShouldAccept_WhenInstantBeforeReference() {
+            // given
+            Instant modified = Instant.parse("2026-01-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-06-01T00:00:00Z");
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(modified, reference))
+                    .as("Should not throw when lastModifiedDate is before reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when lastModifiedDate Instant is null (two-arg Instant)")
+        void validateLastModifiedDate_ShouldThrow_WhenTwoArgModifiedInstantIsNull() {
+            // given
+            Instant reference = Instant.now();
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot
+                            .validateLastModifiedDate(null, reference))
+                    .as("Should throw DomainException when lastModifiedDate Instant is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should throw when lastModifiedDate Instant is after reference Instant")
+        void validateLastModifiedDate_ShouldThrow_WhenInstantAfterReference() {
+            // given
+            Instant modified = Instant.parse("2026-12-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-01-01T00:00:00Z");
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(modified, reference))
+                    .as("Should throw DomainException when lastModifiedDate is after reference Instant")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_AFTER_NOW);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should treat null reference Instant as system now for lastModifiedDate")
+        void validateLastModifiedDate_ShouldUseSystemNow_WhenReferenceInstantIsNull() {
+            // given
+            Instant past = Instant.now().minus(1, ChronoUnit.HOURS);
+            Instant nullReference = null;
+
+            // when & then
+            thenCode(() ->
+                    AbstractAuditableAggregateRoot.validateLastModifiedDate(past, nullReference))
+                    .as("Should not throw when reference Instant is null and lastModifiedDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when both lastModifiedDate and reference Instants are null")
+        void validateLastModifiedDate_ShouldThrow_WhenBothInstantsAreNull() {
+            // given
+
+            // when & then
+            thenThrownBy(() ->
+                    AbstractAuditableAggregateRoot
+                            .validateLastModifiedDate(null, (Instant) null))
+                    .as("Should throw DomainException when both lastModifiedDate and reference Instants are null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_LAST_MODIFIED_DATE_NULL);
         }
     }
 
@@ -439,6 +933,76 @@ class AuditableAggregateRootTests {
                     .as("Builder should support method chaining")
                     .isNotNull();
         }
+
+        @Test
+        @DisplayName("should accept createdDate and lastModifiedDate as Clock")
+        void builder_ShouldAcceptClockTimestamps_WhenProvided() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Instant createdFixed = Instant.parse("2026-01-01T00:00:00Z");
+            Instant modifiedFixed = Instant.parse("2026-01-02T00:00:00Z");
+
+            // when
+            TestAuditableAggregate aggregate =
+                    new TestAuditableAggregate.TestAuditableAggregateBuilder()
+                            .identifier(id)
+                            .createdBy(USER_1)
+                            .createdDate(Clock.fixed(createdFixed, ZoneOffset.UTC))
+                            .lastModifiedBy(USER_2)
+                            .lastModifiedDate(Clock.fixed(modifiedFixed, ZoneOffset.UTC))
+                            .build();
+
+            // then
+            then(aggregate.getCreatedDate()).isEqualTo(createdFixed);
+            then(aggregate.getLastModifiedDate()).isEqualTo(modifiedFixed);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should fall back to system UTC when createdDate Clock is null")
+        void builder_ShouldFallBackToSystemUtc_WhenCreatedDateClockIsNull() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Clock nullClock = null;
+
+            // when
+            TestAuditableAggregate aggregate =
+                    new TestAuditableAggregate.TestAuditableAggregateBuilder()
+                            .identifier(id)
+                            .createdBy(USER_1)
+                            .createdDate(nullClock)
+                            .build();
+
+            // then
+            then(aggregate.getCreatedDate())
+                    .isNotNull()
+                    .isBeforeOrEqualTo(Instant.now());
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should fall back to system UTC when lastModifiedDate Clock is null")
+        void builder_ShouldFallBackToSystemUtc_WhenLastModifiedDateClockIsNull() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Instant created = Instant.now().minus(1, ChronoUnit.DAYS);
+            Clock nullClock = null;
+
+            // when
+            TestAuditableAggregate aggregate =
+                    new TestAuditableAggregate.TestAuditableAggregateBuilder()
+                            .identifier(id)
+                            .createdBy(USER_1)
+                            .createdDate(created)
+                            .lastModifiedBy(USER_2)
+                            .lastModifiedDate(nullClock)
+                            .build();
+
+            // then
+            then(aggregate.getLastModifiedDate())
+                    .isNotNull()
+                    .isBeforeOrEqualTo(Instant.now());
+        }
     }
 
     // ========================================================================================
@@ -468,6 +1032,10 @@ class AuditableAggregateRootTests {
 
         @Serial
         private static final long serialVersionUID = -8698846257496573492L;
+
+        TestAuditableAggregate(TestIdentifier id, String createdBy, Clock createdDate) {
+            super(id, createdBy, createdDate);
+        }
 
         TestAuditableAggregate(TestIdentifier id, String createdBy, Instant createdDate) {
             super(id, createdBy, createdDate);

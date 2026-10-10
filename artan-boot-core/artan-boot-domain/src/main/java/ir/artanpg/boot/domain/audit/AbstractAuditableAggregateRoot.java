@@ -19,8 +19,11 @@ package ir.artanpg.boot.domain.audit;
 import ir.artanpg.boot.domain.exception.DomainException;
 import ir.artanpg.boot.domain.model.AbstractAggregateRoot;
 import ir.artanpg.boot.domain.model.Identifier;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.io.Serial;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.StringJoiner;
 
@@ -87,6 +90,9 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
     @Serial
     private static final long serialVersionUID = 8720586928464103287L;
 
+    private static final String CREATED_DATE_NULL_EXCEPTION_MSG = "The createdDate cannot be null";
+    private static final String LAST_MODIFIED_DATE_NULL_EXCEPTION_MSG = "The lastModifiedDate cannot be null";
+
     /**
      * The user/system who created this aggregate.
      *
@@ -114,6 +120,30 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
      * <p>This field is updated whenever the aggregate is modified.
      */
     private Instant lastModifiedDate;
+
+    /**
+     * Constructs a new auditable aggregate root with the specified identifier,
+     * creator and creation date.
+     *
+     * <p>Validates that the creator is non-blank and the creation date is not
+     * null nor in the future, then stores the instant representation of the
+     * date.
+     *
+     * @param identifier  the unique identifier of the aggregate
+     * @param createdBy   the identifier of the user who created the aggregate
+     * @param createdDate the clock representing the creation time
+     * @throws DomainException if identifier is {@code null}, createdBy is {@code null} or {@code blank},
+     *                         or createdDate is {@code null} or in the future
+     */
+    protected AbstractAuditableAggregateRoot(I identifier, String createdBy, Clock createdDate) {
+        super(identifier);
+
+        validateCreatedBy(createdBy);
+        validateCreatedDate(createdDate);
+
+        this.createdBy = createdBy;
+        this.createdDate = createdDate.instant();
+    }
 
     /**
      * Constructs a new auditable aggregate root with the specified identifier
@@ -194,11 +224,39 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
      * @param modifiedBy the user/system who modified this aggregate
      * @throws DomainException if {@code modifiedBy} is {@code null} or {@code blank}
      */
-    public void markAsModified(String modifiedBy) {
+    public void markAsModified(@NonNull String modifiedBy) {
+        markAsModified(modifiedBy, Clock.systemUTC());
+    }
+
+    /**
+     * Marks the entity as modified by the given user at the specified time,
+     * extracting the instant from the provided clock.
+     *
+     * @param modifiedBy       the identifier of the user who modified the entity
+     * @param lastModifiedDate the clock representing the modification time
+     */
+    public void markAsModified(@NonNull String modifiedBy, @Nullable Clock lastModifiedDate) {
+        Clock now = lastModifiedDate == null ? Clock.systemUTC() : lastModifiedDate;
+        markAsModified(modifiedBy, now.instant());
+    }
+
+    /**
+     * Marks this aggregate as modified with an explicit timestamp.
+     *
+     * <p>Prefer this overload when the modification time is already known
+     * (e.g. replaying events or importing historical data).
+     *
+     * @param modifiedBy       the user/system who modified this aggregate
+     * @param lastModifiedDate the modification timestamp
+     * @throws DomainException if {@code modifiedBy} is {@code null} or {@code blank}
+     * @throws DomainException if {@code modifiedDate} is {@code null}
+     */
+    public void markAsModified(@NonNull String modifiedBy, @NonNull Instant lastModifiedDate) {
         validateLastModifiedBy(modifiedBy);
+        validateLastModifiedDate(lastModifiedDate);
 
         this.lastModifiedBy = modifiedBy;
-        this.lastModifiedDate = Instant.now();
+        this.lastModifiedDate = lastModifiedDate;
     }
 
     /**
@@ -207,26 +265,66 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
      * @param createdBy the value to validate
      * @throws DomainException if createdBy is {@code null} or {@code blank}
      */
-    protected static void validateCreatedBy(String createdBy) {
+    protected static void validateCreatedBy(@NonNull String createdBy) {
         if (createdBy == null || createdBy.isBlank()) {
             throw new DomainException("The createdBy cannot be null or blank");
         }
     }
 
     /**
-     * Validates that the {@code createdDate} field is not null and not in the
-     * future.
+     * Validates that the created date is not null and not in the
+     * future, using the current system time as reference.
      *
-     * @param createdDate the value to validate
-     * @throws DomainException if createdDate is {@code null} or in the future
+     * @param createdDate the date to validate
+     * @throws DomainException if createdDate is {@code null} or after the current time
      */
-    protected static void validateCreatedDate(Instant createdDate) {
-        if (createdDate == null) {
-            throw new DomainException("The createdDate cannot be null");
-        }
-        if (createdDate.isAfter(Instant.now())) {
-            throw new DomainException("The createdDate cannot be after now");
-        }
+    protected static void validateCreatedDate(@NonNull Clock createdDate) {
+        if (createdDate == null) throw new DomainException(CREATED_DATE_NULL_EXCEPTION_MSG);
+        validateCreatedDate(createdDate.instant());
+    }
+
+    /**
+     * Validates that the created date is not null and not in the
+     * future, using a custom reference clock.
+     *
+     * @param createdDate  the date to validate
+     * @param referenceNow the reference clock for "now"
+     * @throws DomainException if createdDate is {@code null} or after referenceNow
+     */
+    protected static void validateCreatedDate(@NonNull Clock createdDate, @Nullable Clock referenceNow) {
+        if (createdDate == null) throw new DomainException(CREATED_DATE_NULL_EXCEPTION_MSG);
+
+        Clock now = referenceNow == null ? Clock.systemUTC() : referenceNow;
+        validateCreatedDate(createdDate.instant(), now.instant());
+    }
+
+    /**
+     * Validates that the created date is not null and not in the
+     * future, using the current system time as reference.
+     *
+     * @param createdDate the date to validate
+     * @throws DomainException if createdDate is {@code null} or after the current time
+     */
+    protected static void validateCreatedDate(@NonNull Instant createdDate) {
+        validateCreatedDate(createdDate, Instant.now());
+    }
+
+    /**
+     * Validates that the created date is not null and not in the
+     * future, using a custom reference instant.
+     *
+     * <p>This is the core validation method that all other
+     * overloads delegate to.
+     *
+     * @param createdDate  the date to validate
+     * @param referenceNow the reference instant for "now"
+     * @throws DomainException if createdDate is {@code null} or after referenceNow
+     */
+    protected static void validateCreatedDate(@NonNull Instant createdDate, @Nullable Instant referenceNow) {
+        if (createdDate == null) throw new DomainException(CREATED_DATE_NULL_EXCEPTION_MSG);
+
+        Instant now = referenceNow == null ? Instant.now() : referenceNow;
+        if (createdDate.isAfter(now)) throw new DomainException("The createdDate cannot be after now");
     }
 
     /**
@@ -235,26 +333,66 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
      * @param lastModifiedBy the value to validate
      * @throws DomainException if lastModifiedBy is {@code null} or {@code blank}
      */
-    protected static void validateLastModifiedBy(String lastModifiedBy) {
+    protected static void validateLastModifiedBy(@NonNull String lastModifiedBy) {
         if (lastModifiedBy == null || lastModifiedBy.isBlank()) {
             throw new DomainException("The lastModifiedBy cannot be null or blank");
         }
     }
 
     /**
-     * Validates that the {@code lastModifiedDate} field is not null and not in
-     * the future.
+     * Validates that the last modified date is not null and not in the
+     * future, using the current system time as reference.
      *
-     * @param lastModifiedDate the value to validate
-     * @throws DomainException if lastModifiedDate is {@code null} or in the future
+     * @param lastModifiedDate the date to validate
+     * @throws DomainException if lastModifiedDate is {@code null} or after the current time
      */
-    protected static void validateLastModifiedDate(Instant lastModifiedDate) {
-        if (lastModifiedDate == null) {
-            throw new DomainException("The lastModifiedDate cannot be null");
-        }
-        if (lastModifiedDate.isAfter(Instant.now())) {
-            throw new DomainException("The lastModifiedDate cannot be after now");
-        }
+    protected static void validateLastModifiedDate(@NonNull Clock lastModifiedDate) {
+        if (lastModifiedDate == null) throw new DomainException(LAST_MODIFIED_DATE_NULL_EXCEPTION_MSG);
+        validateLastModifiedDate(lastModifiedDate.instant(), Instant.now());
+    }
+
+    /**
+     * Validates that the last modified date is not null and not in the
+     * future, using a custom reference clock.
+     *
+     * @param lastModifiedDate the date to validate
+     * @param referenceNow     the reference clock for "now"
+     * @throws DomainException if lastModifiedDate is {@code null} or after referenceNow
+     */
+    protected static void validateLastModifiedDate(@NonNull Clock lastModifiedDate, @Nullable Clock referenceNow) {
+        if (lastModifiedDate == null) throw new DomainException(LAST_MODIFIED_DATE_NULL_EXCEPTION_MSG);
+
+        Clock now = referenceNow == null ? Clock.systemUTC() : referenceNow;
+        validateLastModifiedDate(lastModifiedDate.instant(), now.instant());
+    }
+
+    /**
+     * Validates that the last modified date is not null and not in the
+     * future, using the current system time as reference.
+     *
+     * @param lastModifiedDate the date to validate
+     * @throws DomainException if lastModifiedDate is {@code null} or after the current time
+     */
+    protected static void validateLastModifiedDate(@NonNull Instant lastModifiedDate) {
+        validateLastModifiedDate(lastModifiedDate, Instant.now());
+    }
+
+    /**
+     * Validates that the last modified date is not null and not in the
+     * future, using a custom reference instant.
+     *
+     * <p>This is the core validation method that all other overloads
+     * delegate to.
+     *
+     * @param lastModifiedDate the date to validate
+     * @param referenceNow     the reference instant for "now"
+     * @throws DomainException if lastModifiedDate is {@code null} or after referenceNow
+     */
+    protected static void validateLastModifiedDate(@NonNull Instant lastModifiedDate, @Nullable Instant referenceNow) {
+        if (lastModifiedDate == null) throw new DomainException(LAST_MODIFIED_DATE_NULL_EXCEPTION_MSG);
+
+        Instant now = referenceNow == null ? Instant.now() : referenceNow;
+        if (lastModifiedDate.isAfter(now)) throw new DomainException("The lastModifiedDate cannot be after now");
     }
 
     @Override
@@ -328,6 +466,17 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
         }
 
         /**
+         * Sets the timestamp when the aggregate was created.
+         *
+         * @param createdDate the creation timestamp
+         * @return this builder instance for method chaining
+         */
+        public B createdDate(final Clock createdDate) {
+            this.createdDate = (createdDate == null ? Clock.systemUTC() : createdDate).instant();
+            return this.self();
+        }
+
+        /**
          * Sets the user/system who last modified the aggregate.
          *
          * @param lastModifiedBy the last modifier identifier
@@ -346,6 +495,17 @@ public abstract class AbstractAuditableAggregateRoot<I extends Identifier<?>>
          */
         public B lastModifiedDate(final Instant lastModifiedDate) {
             this.lastModifiedDate = lastModifiedDate;
+            return this.self();
+        }
+
+        /**
+         * Sets the timestamp when the aggregate was last modified.
+         *
+         * @param lastModifiedDate the last modification timestamp
+         * @return this builder instance for method chaining
+         */
+        public B lastModifiedDate(final Clock lastModifiedDate) {
+            this.lastModifiedDate = (lastModifiedDate == null ? Clock.systemUTC() : lastModifiedDate).instant();
             return this.self();
         }
     }

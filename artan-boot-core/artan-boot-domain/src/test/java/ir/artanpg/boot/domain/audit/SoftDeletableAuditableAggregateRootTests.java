@@ -25,7 +25,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -47,6 +49,8 @@ class SoftDeletableAuditableAggregateRootTests {
     private static final String BLANK_STRING = "   ";
     private static final String ERROR_NOT_RESTORABLE = "Aggregate is not restorable";
     private static final String ERROR_DELETED_BY_NULL_OR_BLANK = "The deletedBy cannot be null or blank";
+    private static final String ERROR_DELETED_DATE_NULL = "The deletedDate cannot be null";
+    private static final String ERROR_DELETED_DATE_AFTER_NOW = "The deletedDate cannot be after now";
 
     @Nested
     @DisplayName("Constructor with Identifier and Audit Fields")
@@ -63,6 +67,32 @@ class SoftDeletableAuditableAggregateRootTests {
             TestSoftDelAuditableAggregate aggregate = new TestSoftDelAuditableAggregate(id, USER_1, createdDate);
 
             // then
+            then(aggregate.isDeleted())
+                    .as("Should not be deleted initially")
+                    .isFalse();
+            then(aggregate.getDeletedBy())
+                    .as("DeletedBy should be null initially")
+                    .isNull();
+            then(aggregate.getDeletedDate())
+                    .as("DeletedDate should be null initially")
+                    .isNull();
+        }
+
+        @Test
+        @DisplayName("should initialize from Clock constructor without deletion state")
+        void constructor_ShouldInitializeFromClock_WhenClockProvided() {
+            // given
+            TestIdentifier id = new TestIdentifier(AGGREGATE_ID);
+            Instant fixed = Instant.parse("2026-02-01T00:00:00Z");
+            Clock clock = Clock.fixed(fixed, ZoneOffset.UTC);
+
+            // when
+            TestSoftDelAuditableAggregate aggregate = new TestSoftDelAuditableAggregate(id, USER_1, clock);
+
+            // then
+            then(aggregate.getCreatedDate())
+                    .as("CreatedDate should match the fixed Clock instant")
+                    .isEqualTo(fixed);
             then(aggregate.isDeleted())
                     .as("Should not be deleted initially")
                     .isFalse();
@@ -132,12 +162,6 @@ class SoftDeletableAuditableAggregateRootTests {
                     .isEqualTo(USER_SYSTEM);
             then(aggregate.getDeletedDate())
                     .as("DeletedDate should be recorded")
-                    .isNotNull();
-            then(aggregate.getLastModifiedBy())
-                    .as("Audit trail: lastModifiedBy should be updated on deletion")
-                    .isEqualTo(USER_SYSTEM);
-            then(aggregate.getLastModifiedDate())
-                    .as("Audit trail: lastModifiedDate should be updated on deletion")
                     .isNotNull();
         }
 
@@ -430,6 +454,251 @@ class SoftDeletableAuditableAggregateRootTests {
     }
 
     @Nested
+    @DisplayName("validateDeletedDate")
+    class ValidateDeletedDate {
+
+        @Test
+        @DisplayName("should accept valid Instant when using single-arg Instant overload")
+        void validateDeletedDate_ShouldAcceptValidInstant_WhenSingleArgInstant() {
+            // given
+            Instant past = Instant.now().minus(1, ChronoUnit.HOURS);
+
+            // when & then
+            thenCode(() ->
+                    AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(past))
+                    .as("Should not throw for a valid past deletedDate Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should throw when Instant is null (single-arg Instant overload)")
+        void validateDeletedDate_ShouldThrow_WhenSingleArgInstantIsNull() {
+            // given
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate((Instant) null))
+                    .as("Should throw DomainException when deletedDate Instant is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should throw when Instant is in the future (single-arg Instant overload)")
+        void validateDeletedDate_ShouldThrow_WhenSingleArgInstantIsInTheFuture() {
+            // given
+            Instant future = Instant.now().plus(1, ChronoUnit.DAYS);
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(future))
+                    .as("Should throw DomainException when deletedDate Instant is in the future")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should accept when deletedDate is before reference Instant")
+        void validateDeletedDate_ShouldAccept_WhenInstantBeforeReference() {
+            // given
+            Instant deleted = Instant.parse("2026-01-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-06-01T00:00:00Z");
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(deleted, reference))
+                    .as("Should not throw when deletedDate is before reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should accept when deletedDate equals reference Instant")
+        void validateDeletedDate_ShouldAccept_WhenInstantEqualsReference() {
+            // given
+            Instant same = Instant.parse("2026-03-15T12:00:00Z");
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(same, same))
+                    .as("Should not throw when deletedDate equals reference Instant")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when deletedDate Instant is null (two-arg Instant)")
+        void validateDeletedDate_ShouldThrow_WhenTwoArgDeletedInstantIsNull() {
+            // given
+            Instant reference = Instant.now();
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(null, reference))
+                    .as("Should throw DomainException when deletedDate Instant is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should throw when deletedDate is after reference Instant")
+        void validateDeletedDate_ShouldThrow_WhenInstantAfterReference() {
+            // given
+            Instant deleted = Instant.parse("2026-12-01T00:00:00Z");
+            Instant reference = Instant.parse("2026-01-01T00:00:00Z");
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(deleted, reference))
+                    .as("Should throw DomainException when deletedDate is after reference Instant")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_AFTER_NOW);
+        }
+
+        @Test
+        @DisplayName("should treat null reference Instant as system now")
+        void validateDeletedDate_ShouldUseSystemNow_WhenReferenceInstantIsNull() {
+            // given
+            Instant past = Instant.now().minus(1, ChronoUnit.DAYS);
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(past, null))
+                    .as("Should not throw when reference Instant is null and deletedDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when deletedDate is null and reference Instant is null")
+        void validateDeletedDate_ShouldThrow_WhenBothInstantsAreNull() {
+            // given
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(null, (Instant) null))
+                    .as("Should throw DomainException when both deletedDate and reference Instants are null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should accept valid Clock when using single-arg Clock overload")
+        void validateDeletedDate_ShouldAcceptValidClock_WhenSingleArgClock() {
+            // given
+            Clock past = Clock.fixed(Instant.now().minus(1, ChronoUnit.HOURS), ZoneOffset.UTC);
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(past))
+                    .as("Should not throw for a valid past deletedDate Clock")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when Clock is null (single-arg Clock overload)")
+        void validateDeletedDate_ShouldThrow_WhenSingleArgClockIsNull() {
+            // given
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate((Clock) null))
+                    .as("Should throw DomainException when deletedDate Clock is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+
+        @Test
+        @DisplayName("should accept when deletedDate Clock is before reference Clock")
+        void validateDeletedDate_ShouldAccept_WhenClockBeforeReferenceClock() {
+            // given
+            Clock deleted = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(deleted, reference))
+                    .as("Should not throw when deletedDate Clock is before reference Clock")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("should throw when deletedDate Clock is after reference Clock")
+        void validateDeletedDate_ShouldThrow_WhenClockAfterReferenceClock() {
+            // given
+            Clock deleted = Clock.fixed(Instant.parse("2026-12-01T00:00:00Z"), ZoneOffset.UTC);
+            Clock reference = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot.
+                            validateDeletedDate(deleted, reference))
+                    .as("Should throw DomainException when deletedDate Clock is after reference Clock")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_AFTER_NOW);
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when deletedDate Clock is null (two-arg Clock)")
+        void validateDeletedDate_ShouldThrow_WhenTwoArgDeletedClockIsNull() {
+            // given
+            Clock reference = Clock.systemUTC();
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(null, reference))
+                    .as("Should throw DomainException when deletedDate Clock is null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+
+        @SuppressWarnings("ConstantValue")
+        @Test
+        @DisplayName("should treat null reference Clock as system UTC")
+        void validateDeletedDate_ShouldUseSystemUtc_WhenReferenceClockIsNull() {
+            // given
+            Clock past = Clock.fixed(Instant.now().minus(1, ChronoUnit.DAYS), ZoneOffset.UTC);
+            Clock nullReference = null;
+
+            // when & then
+            thenCode(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(past, nullReference))
+                    .as("Should not throw when reference Clock is null and deletedDate is in the past")
+                    .doesNotThrowAnyException();
+        }
+
+        @SuppressWarnings("DataFlowIssue")
+        @Test
+        @DisplayName("should throw when deletedDate Clock is null and reference Clock is null")
+        void validateDeletedDate_ShouldThrow_WhenBothClocksAreNull() {
+            // given
+
+            // when & then
+            thenThrownBy(
+                    () -> AbstractSoftDeletableAuditableAggregateRoot
+                            .validateDeletedDate(null, (Clock) null))
+                    .as("Should throw DomainException when both deletedDate and reference Clocks are null")
+                    .isInstanceOf(DomainException.class)
+                    .hasMessage(ERROR_DELETED_DATE_NULL);
+        }
+    }
+
+    @Nested
     @DisplayName("toString")
     class ToString {
 
@@ -510,8 +779,11 @@ class SoftDeletableAuditableAggregateRootTests {
         @Serial
         private static final long serialVersionUID = -8087032927637639987L;
 
-        TestSoftDelAuditableAggregate(
-                TestIdentifier id, String createdBy, Instant createdDate) {
+        TestSoftDelAuditableAggregate(TestIdentifier id, String createdBy, Clock createdDate) {
+            super(id, createdBy, createdDate);
+        }
+
+        TestSoftDelAuditableAggregate(TestIdentifier id, String createdBy, Instant createdDate) {
             super(id, createdBy, createdDate);
         }
 
