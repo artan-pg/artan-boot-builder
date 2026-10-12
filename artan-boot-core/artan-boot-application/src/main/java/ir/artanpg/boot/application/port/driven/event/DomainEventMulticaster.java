@@ -77,16 +77,18 @@ public interface DomainEventMulticaster {
      *
      * @param interceptor the interceptor to add
      * @param <E>         the event type the interceptor applies to
+     * @return {@code true} if the interceptor was not already registered and is now added, {@code false} otherwise
      */
-    <E extends DomainEvent<?, ?>> void addInterceptor(@NonNull DomainEventInterceptor<E> interceptor);
+    <E extends DomainEvent<?, ?>> boolean addInterceptor(@NonNull DomainEventInterceptor<E> interceptor);
 
     /**
      * Remove a previously registered interceptor.
      *
      * @param interceptor the interceptor to remove
      * @param <E>         the event type the interceptor removes to
+     * @return {@code true} if the interceptor was registered and is now removed, {@code false} otherwise
      */
-    <E extends DomainEvent<?, ?>> void removeInterceptor(@NonNull DomainEventInterceptor<E> interceptor);
+    <E extends DomainEvent<?, ?>> boolean removeInterceptor(DomainEventInterceptor<E> interceptor);
 
     /**
      * Multicast the given domain event to all matching registered listeners.
