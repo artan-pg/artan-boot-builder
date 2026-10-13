@@ -41,11 +41,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.assertj.core.api.BDDAssertions.thenCode;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import static org.awaitility.Awaitility.await;
 
@@ -1581,6 +1585,144 @@ class SimpleDomainEventMulticasterTests {
                     .as("multicastEvent type extraction should return null when the type argument is neither Class " +
                             "nor ParameterizedType")
                     .isNull();
+        }
+
+        @Test
+        @DisplayName("Returns immediately from sleepQuietly when wait duration is null")
+        void multicastEvent_ShouldNotSleep_WhenRetryIntervalIsNull() {
+            // given
+            AtomicInteger attempts = new AtomicInteger();
+            DomainEventListener<DomainEvent<?, ?>> listener = new DomainEventListener<>() {
+                @Override
+                public void process(DomainEvent<?, ?> event) {
+                    if (attempts.incrementAndGet() == 1) throw new IllegalStateException("transient");
+                }
+
+                @Override
+                public String getListenerId() {
+                    return "null-interval";
+                }
+
+                @Override
+                public boolean supportsAsyncExecution() {
+                    return false;
+                }
+            };
+            multicaster = new SimpleDomainEventMulticaster(null, RetryPolicy.fixed(1, Duration.ofMillis(1)));
+            multicaster.addListener(listener);
+            multicaster.addInterceptor(new DomainEventInterceptor<>() {
+                @Override
+                public void onError(DomainEventInterceptionContext<DomainEvent<?, ?>> context, Throwable throwable) {
+                    context.requestRetry();
+                }
+            });
+
+            // when — invoke sleepQuietly indirectly and also via package-private access
+            SimpleDomainEventMulticaster.sleepQuietly(null);
+
+            // then
+            then(attempts.get())
+                    .as("null interval must short-circuit without any sleep or error")
+                    .isZero();
+        }
+
+        @Test
+        @DisplayName("sleepQuietly returns immediately when duration is null")
+        void SleepQuietly_ShouldReturnImmediately_WhenDurationIsNull() {
+            // given
+
+            // // when & then
+            thenCode(() -> SimpleDomainEventMulticaster.sleepQuietly(null))
+                    .as("sleepQuietly must accept a null duration and return without throwing")
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("sleepQuietly returns immediately when duration is zero")
+        void SleepQuietly_ShouldReturnImmediately_WhenDurationIsZero() {
+            // given
+            Duration wait = Duration.ZERO;
+
+            // when
+            long started = System.nanoTime();
+            SimpleDomainEventMulticaster.sleepQuietly(wait);
+            long elapsedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+
+            // then
+            then(elapsedMs)
+                    .as("a zero duration must not trigger any Thread.sleep call")
+                    .isLessThan(50L);
+        }
+
+        @Test
+        @DisplayName("sleepQuietly returns immediately when duration is negative")
+        void SleepQuietly_ShouldReturnImmediately_WhenDurationIsNegative() {
+            // given
+            Duration wait = Duration.ofMillis(-1);
+
+            // when
+            long started = System.nanoTime();
+            SimpleDomainEventMulticaster.sleepQuietly(wait);
+            long elapsedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+
+            // then
+            then(elapsedMs)
+                    .as("a negative duration must be treated as a no-op and return immediately")
+                    .isLessThan(50L);
+        }
+
+        @Test
+        @DisplayName("sleepQuietly restores the interrupt flag when interrupted during sleep")
+        void SleepQuietly_ShouldRestoreInterruptFlag_WhenInterrupted() throws InterruptedException {
+            // given
+            Duration wait = Duration.ofSeconds(5);
+            AtomicReference<Boolean> interruptedFlagAfterCall = new AtomicReference<>(false);
+            CountDownLatch started = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(1);
+
+            // when
+            Thread worker = new Thread(() -> {
+                started.countDown();
+                SimpleDomainEventMulticaster.sleepQuietly(wait);
+                interruptedFlagAfterCall.set(Thread.currentThread().isInterrupted());
+                done.countDown();
+            });
+            worker.start();
+
+            // wait for the worker to enter the sleep
+            then(started.await(1, TimeUnit.SECONDS))
+                    .as("worker thread must have started before we interrupt it")
+                    .isTrue();
+
+            // give the thread a moment to actually enter Thread.sleep
+            await().atMost(Duration.ofSeconds(1)).until(() -> worker.getState() == Thread.State.TIMED_WAITING);
+
+            worker.interrupt();
+            then(done.await(2, TimeUnit.SECONDS))
+                    .as("sleepQuietly must return promptly after the interrupt")
+                    .isTrue();
+
+            // then
+            then(interruptedFlagAfterCall.get())
+                    .as("sleepQuietly must call Thread.currentThread().interrupt() to restore the interrupted status")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("sleepQuietly performs the actual sleep when duration is positive")
+        void SleepQuietly_ShouldSleep_WhenDurationIsPositive() {
+            // given
+            Duration wait = Duration.ofMillis(100);
+
+            // when
+            long started = System.nanoTime();
+            SimpleDomainEventMulticaster.sleepQuietly(wait);
+            long elapsedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+
+            // then
+            then(elapsedMs)
+                    .as("sleepQuietly must actually sleep for approximately the requested duration")
+                    .isGreaterThanOrEqualTo(90L);
         }
     }
 
