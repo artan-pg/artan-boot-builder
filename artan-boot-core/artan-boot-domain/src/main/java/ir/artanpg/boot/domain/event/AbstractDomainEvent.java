@@ -60,6 +60,10 @@ import java.util.StringJoiner;
  */
 public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements DomainEvent<I, P> {
 
+    private static final String AGGREGATE_ID_EXCEPTION_MSG = "The aggregateId cannot be null";
+    private static final String PAYLOAD_EXCEPTION_MSG = "The payload cannot be null";
+    private static final String EVENT_TYPE_EXCEPTION_MSG = "The eventType cannot be null";
+
     /**
      * The unique identifier for this event.
      */
@@ -154,9 +158,9 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
                                   @Nullable Clock clock,
                                   @Nullable IdGenerator idGenerator,
                                   @Nullable EventMetadata metadata) {
-        if (aggregateId == null) throw new DomainEventException("The aggregateId cannot be null");
-        if (payload == null) throw new DomainEventException("The payload cannot be null");
-        if (eventType == null) throw new DomainEventException("The eventType cannot be null");
+        if (aggregateId == null) throw new DomainEventException(AGGREGATE_ID_EXCEPTION_MSG);
+        if (payload == null) throw new DomainEventException(PAYLOAD_EXCEPTION_MSG);
+        if (eventType == null) throw new DomainEventException(EVENT_TYPE_EXCEPTION_MSG);
 
         IdGenerator generator = (idGenerator != null) ? idGenerator : IdGenerator.uuid();
         this.eventId = generator.nextId();
@@ -165,6 +169,41 @@ public abstract class AbstractDomainEvent<I extends Identifier<?>, P> implements
         }
 
         this.occurredAt = (clock != null) ? clock.instant() : Instant.now();
+        this.aggregateId = aggregateId;
+        this.payload = payload;
+        this.eventType = eventType;
+        this.metadata = (metadata != null) ? metadata : EventMetadata.empty();
+    }
+
+    /**
+     * Reconstitution constructor for infrastructure serializers/deserializers.
+     *
+     * <p>Restores a previously persisted domain fact with a fixed {@code eventId}
+     * and {@code occurredAt}. Application code must not use this constructor to
+     * raise new events; use the generative constructors instead.
+     *
+     * @param eventId     the original event identifier; must not be blank
+     * @param occurredAt  the original occurrence timestamp; must not be {@code null}
+     * @param aggregateId the aggregate identifier; must not be {@code null}
+     * @param payload     the event payload; must not be {@code null}
+     * @param eventType   the semantic event type; must not be {@code null}
+     * @param metadata    cross-cutting metadata; {@code null} becomes {@link EventMetadata#empty()}
+     * @throws DomainEventException if any mandatory argument is invalid
+     */
+    protected AbstractDomainEvent(@NonNull String eventId,
+                                  @NonNull Instant occurredAt,
+                                  @NonNull I aggregateId,
+                                  @NonNull P payload,
+                                  @NonNull EventType eventType,
+                                  @Nullable EventMetadata metadata) {
+        if (eventId == null || eventId.isBlank()) throw new DomainEventException("The eventId cannot be null or blank");
+        if (occurredAt == null) throw new DomainEventException("The occurredAt cannot be null");
+        if (aggregateId == null) throw new DomainEventException(AGGREGATE_ID_EXCEPTION_MSG);
+        if (payload == null) throw new DomainEventException(PAYLOAD_EXCEPTION_MSG);
+        if (eventType == null) throw new DomainEventException(EVENT_TYPE_EXCEPTION_MSG);
+
+        this.eventId = eventId;
+        this.occurredAt = occurredAt;
         this.aggregateId = aggregateId;
         this.payload = payload;
         this.eventType = eventType;

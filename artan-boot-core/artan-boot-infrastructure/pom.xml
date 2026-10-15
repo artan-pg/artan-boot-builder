@@ -37,6 +37,11 @@
       <artifactId>caffeine</artifactId>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>compile</scope>
+    </dependency>
 
     <dependency>
       <groupId>org.projectlombok</groupId>

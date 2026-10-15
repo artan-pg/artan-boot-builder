@@ -159,6 +159,7 @@ class DomainEventTests {
             then(event.getEventId()).isNotBlank();
         }
 
+        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("Constructor should throw DomainEventException when generated event id is null")
         void constructor_ShouldThrowDomainEventException_WhenGeneratedEventIdIsNull() {
@@ -202,6 +203,168 @@ class DomainEventTests {
             thenThrownBy(() -> new TestEvent(aggregateId, payload, null, idGenerator))
                     .isInstanceOf(DomainEventException.class)
                     .hasMessage("The generated eventId cannot be null or blank");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor preserves all provided state")
+        void reconstitutionConstructor_ShouldPreserveAllState_WhenValidArgumentsProvided() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            String eventId = "reconstituted-id";
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            String payload = "payload";
+            EventType eventType = EventType.of("TestEvent");
+            EventMetadata metadata = EventMetadata.builder()
+                    .correlationId("corr-1")
+                    .tenant("tenant-a")
+                    .build();
+
+            // when
+            TestEvent event = new TestEvent(eventId, occurredAt, aggregateId, payload, eventType, metadata);
+
+            // then
+            then(event.getEventId())
+                    .as("the reconstituted event must preserve the exact event id supplied to the constructor")
+                    .isEqualTo(eventId);
+            then(event.getOccurredAt())
+                    .as("the reconstituted event must preserve the exact occurrence timestamp supplied")
+                    .isEqualTo(occurredAt);
+            then(event.getAggregateId())
+                    .as("the reconstituted event must preserve the exact aggregate id supplied")
+                    .isSameAs(aggregateId);
+            then(event.getPayload())
+                    .as("the reconstituted event must preserve the exact payload supplied")
+                    .isEqualTo(payload);
+            then(event.getEventType())
+                    .as("the reconstituted event must preserve the exact event type supplied")
+                    .isEqualTo(eventType);
+            then(event.getMetadata())
+                    .as("the reconstituted event must preserve the exact metadata instance supplied")
+                    .isSameAs(metadata);
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor defaults metadata to empty when null")
+        void reconstitutionConstructor_ShouldDefaultMetadataToEmpty_WhenMetadataIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            String eventId = "reconstituted-id";
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            String payload = "payload";
+            EventType eventType = EventType.of("TestEvent");
+
+            // when
+            TestEvent event = new TestEvent(eventId, occurredAt, aggregateId, payload, eventType, null);
+
+            // then
+            then(event.getMetadata())
+                    .as("a null metadata argument must be normalized to the shared empty metadata instance")
+                    .isEqualTo(EventMetadata.empty());
+            then(event.getMetadata().isEmpty())
+                    .as("the defaulted metadata must report itself as empty")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when event id is null")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenEventIdIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent(null, occurredAt, aggregateId, "payload", eventType, null))
+                    .as("a null event id must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The eventId cannot be null or blank");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when event id is empty")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenEventIdIsEmpty() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("", occurredAt, aggregateId, "payload", eventType, null))
+                    .as("an empty event id must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The eventId cannot be null or blank");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when event id is blank")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenEventIdIsBlank() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("   ", occurredAt, aggregateId, "payload", eventType, null))
+                    .as("a blank event id must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The eventId cannot be null or blank");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when occurred at is null")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenOccurredAtIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("recon-id", null, aggregateId, "payload", eventType, null))
+                    .as("a null occurredAt must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The occurredAt cannot be null");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when aggregate id is null")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenAggregateIdIsNull() {
+            // given
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("recon-id", occurredAt, null, "payload", eventType, null))
+                    .as("a null aggregate id must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The aggregateId cannot be null");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when payload is null")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenPayloadIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+            EventType eventType = EventType.of("TestEvent");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("recon-id", occurredAt, aggregateId, null, eventType, null))
+                    .as("a null payload must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The payload cannot be null");
+        }
+
+        @Test
+        @DisplayName("Reconstitution constructor throws when event type is null")
+        void reconstitutionConstructor_ShouldThrowDomainEventException_WhenEventTypeIsNull() {
+            // given
+            Identifier<?> aggregateId = mock(Identifier.class);
+            Instant occurredAt = Instant.parse("2024-06-01T10:15:30Z");
+
+            // when & then
+            thenThrownBy(() -> new TestEvent("recon-id", occurredAt, aggregateId, "payload", null, null))
+                    .as("a null event type must be rejected by the reconstitution constructor")
+                    .isInstanceOf(DomainEventException.class)
+                    .hasMessage("The eventType cannot be null");
         }
     }
 
@@ -768,6 +931,7 @@ class DomainEventTests {
             then(result).isFalse();
         }
 
+        @SuppressWarnings("DataFlowIssue")
         @Test
         @DisplayName("isOfType should return false when own name is null and other name is not null")
         void isOfType_ShouldReturnFalse_WhenOwnNameIsNullAndOtherNameIsNotNull() {
@@ -926,6 +1090,15 @@ class DomainEventTests {
                   IdGenerator idGenerator,
                   EventMetadata metadata) {
             super(aggregateId, payload, mock(EventType.class), clock, idGenerator, metadata);
+        }
+
+        TestEvent(String eventId,
+                  Instant occurredAt,
+                  Identifier<?> aggregateId,
+                  String payload,
+                  EventType eventType,
+                  EventMetadata metadata) {
+            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
         }
 
         public PayloadRedactionPolicy getRedactionPolicy() {
