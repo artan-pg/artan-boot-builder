@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.exception;
+package ir.artanpg.boot.domain.exception.event;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

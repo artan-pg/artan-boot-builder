@@ -17,7 +17,7 @@
 package ir.artanpg.boot.application.port.driven.event;
 
 import ir.artanpg.boot.domain.event.DomainEvent;
-import ir.artanpg.boot.domain.exception.SerializationException;
+import ir.artanpg.boot.domain.exception.event.SerializationException;
 import org.jspecify.annotations.NonNull;
 
 /**

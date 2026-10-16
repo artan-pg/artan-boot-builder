@@ -16,7 +16,7 @@
 
 package ir.artanpg.boot.domain.event;
 
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

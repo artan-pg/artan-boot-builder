@@ -20,7 +20,7 @@ import ir.artanpg.boot.application.port.driven.event.DomainEventMulticaster;
 import ir.artanpg.boot.domain.event.AbstractDomainEvent;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import ir.artanpg.boot.domain.model.Identifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

@@ -14,28 +14,34 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.exception;
+package ir.artanpg.boot.domain.exception.event;
+
+import ir.artanpg.boot.domain.exception.DomainException;
 
 import java.io.Serial;
 
 /**
- * Base exception for domain event payload serialize and deserialize errors.
+ * Exception thrown when a domain event interceptor vetoes the
+ * current processing phase.
+ *
+ * <p>Indicates that an interceptor has explicitly aborted the
+ * event dispatch or handling cycle.
  *
  * @author Mohammad Yazdian
  * @see DomainException
  * @since 0.1.0
  */
-public class SerializationException extends DomainException {
+public class InterceptorVetoException extends DomainException {
 
     @Serial
-    private static final long serialVersionUID = -7498251266433413517L;
+    private static final long serialVersionUID = 8763302010471429685L;
 
     /**
      * Constructs a new exception with the specified message.
      *
      * @param message the detail message
      */
-    public SerializationException(String message) {
+    public InterceptorVetoException(String message) {
         super(message);
     }
 
@@ -45,7 +51,7 @@ public class SerializationException extends DomainException {
      * @param messageCode the code identifying the error
      * @param message     the detail message
      */
-    public SerializationException(String messageCode, String message) {
+    public InterceptorVetoException(String messageCode, String message) {
         super(messageCode, message);
     }
 
@@ -57,7 +63,7 @@ public class SerializationException extends DomainException {
      * @param messageArgs the arguments for message interpolation
      * @param message     the detail message
      */
-    public SerializationException(String messageCode, String[] messageArgs, String message) {
+    public InterceptorVetoException(String messageCode, String[] messageArgs, String message) {
         super(messageCode, messageArgs, message);
     }
 
@@ -67,7 +73,7 @@ public class SerializationException extends DomainException {
      * @param message the detail message
      * @param cause   the cause of the exception
      */
-    public SerializationException(String message, Throwable cause) {
+    public InterceptorVetoException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -79,7 +85,7 @@ public class SerializationException extends DomainException {
      * @param message     the detail message
      * @param cause       the cause of the exception
      */
-    public SerializationException(String messageCode, String message, Throwable cause) {
+    public InterceptorVetoException(String messageCode, String message, Throwable cause) {
         super(messageCode, message, cause);
     }
 
@@ -92,7 +98,7 @@ public class SerializationException extends DomainException {
      * @param message     the detail message
      * @param cause       the cause of the exception
      */
-    public SerializationException(String messageCode, String[] messageArgs, String message, Throwable cause) {
+    public InterceptorVetoException(String messageCode, String[] messageArgs, String message, Throwable cause) {
         super(messageCode, messageArgs, message, cause);
     }
 }

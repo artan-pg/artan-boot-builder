@@ -20,7 +20,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import ir.artanpg.boot.application.port.driven.event.EventTypeCacheStore;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

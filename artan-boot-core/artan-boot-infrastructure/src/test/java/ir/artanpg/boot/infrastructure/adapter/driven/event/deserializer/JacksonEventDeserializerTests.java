@@ -20,7 +20,7 @@ import ir.artanpg.boot.domain.event.AbstractDomainEvent;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventMetadata;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.exception.SerializationException;
+import ir.artanpg.boot.domain.exception.event.SerializationException;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.infrastructure.adapter.driven.event.serializer.JacksonEventSerializer;
 import ir.artanpg.boot.infrastructure.adapter.driven.event.support.EventEnvelope;

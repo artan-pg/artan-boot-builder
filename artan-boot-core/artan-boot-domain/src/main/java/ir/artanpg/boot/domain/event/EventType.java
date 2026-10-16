@@ -16,7 +16,7 @@
 
 package ir.artanpg.boot.domain.event;
 
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

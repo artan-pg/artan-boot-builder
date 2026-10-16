@@ -18,7 +18,7 @@ package ir.artanpg.boot.application.port.driving.event;
 
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

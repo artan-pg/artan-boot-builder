@@ -20,7 +20,7 @@ import ir.artanpg.boot.application.port.driven.event.DomainEventInterceptor;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.retry.RetryPolicy;
 import ir.artanpg.boot.domain.event.retry.RetryState;
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

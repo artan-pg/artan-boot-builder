@@ -23,8 +23,8 @@ import ir.artanpg.boot.application.port.driving.event.DomainEventListener;
 import ir.artanpg.boot.application.port.driving.event.DomainEventSmartListener;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.retry.RetryPolicy;
-import ir.artanpg.boot.domain.exception.DomainEventException;
-import ir.artanpg.boot.domain.exception.InterceptorVetoException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.InterceptorVetoException;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

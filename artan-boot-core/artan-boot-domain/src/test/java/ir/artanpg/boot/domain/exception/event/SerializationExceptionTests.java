@@ -14,29 +14,30 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.exception;
+package ir.artanpg.boot.domain.exception.event;
 
+import ir.artanpg.boot.domain.exception.DomainException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.BDDAssertions.then;
 
 /**
- * Unit tests for {@link DomainEventException}.
+ * Unit tests for {@link SerializationException}.
  *
  * @author Mohammad Yazdian
  */
-@DisplayName("Domain Event Exception Tests")
-class DomainEventExceptionTests {
+@DisplayName("Serialization Exception Tests")
+class SerializationExceptionTests {
 
     @Test
     @DisplayName("Should set message when only message is provided")
     void Constructor_ShouldSetMessage_WhenMessageIsPassed() {
         // given
-        String message = "Test event error message";
+        String message = "Test serialization error message";
 
         // when
-        DomainEventException exception = new DomainEventException(message);
+        SerializationException exception = new SerializationException(message);
 
         // then
         then(exception).isInstanceOf(DomainException.class);
@@ -48,10 +49,10 @@ class DomainEventExceptionTests {
     void Constructor_ShouldSetMessageCodeAndMessage_WhenMessageCodeAndMessageArePassed() {
         // given
         String messageCode = "EVT_001";
-        String message = "Test event error message";
+        String message = "Test serialization error message";
 
         // when
-        DomainEventException exception = new DomainEventException(messageCode, message);
+        SerializationException exception = new SerializationException(messageCode, message);
 
         // then
         then(exception.getMessage()).isEqualTo(message);
@@ -64,10 +65,10 @@ class DomainEventExceptionTests {
         // given
         String messageCode = "EVT_002";
         String[] messageArgs = {"arg1", "arg2"};
-        String message = "Test event error message with args";
+        String message = "Test serialization error message with args";
 
         // when
-        DomainEventException exception = new DomainEventException(messageCode, messageArgs, message);
+        SerializationException exception = new SerializationException(messageCode, messageArgs, message);
 
         // then
         then(exception.getMessage()).isEqualTo(message);
@@ -79,11 +80,11 @@ class DomainEventExceptionTests {
     @DisplayName("Should set message and cause when both are provided")
     void Constructor_ShouldSetMessageAndCause_WhenMessageAndCauseArePassed() {
         // given
-        String message = "Test event error message";
+        String message = "Test serialization error message";
         Throwable cause = new RuntimeException("Root cause");
 
         // when
-        DomainEventException exception = new DomainEventException(message, cause);
+        SerializationException exception = new SerializationException(message, cause);
 
         // then
         then(exception.getMessage()).isEqualTo(message);
@@ -95,11 +96,11 @@ class DomainEventExceptionTests {
     void Constructor_ShouldSetMessageCodeMessageAndCause_WhenMessageCodeMessageAndCauseArePassed() {
         // given
         String messageCode = "EVT_003";
-        String message = "Test event error message";
+        String message = "Test serialization error message";
         Throwable cause = new RuntimeException("Root cause");
 
         // when
-        DomainEventException exception = new DomainEventException(messageCode, message, cause);
+        SerializationException exception = new SerializationException(messageCode, message, cause);
 
         // then
         then(exception.getMessage()).isEqualTo(message);
@@ -113,11 +114,11 @@ class DomainEventExceptionTests {
         // given
         String messageCode = "EVT_004";
         String[] messageArgs = {"arg1", "arg2"};
-        String message = "Test event error message with args and cause";
+        String message = "Test serialization error message with args and cause";
         Throwable cause = new RuntimeException("Root cause");
 
         // when
-        DomainEventException exception = new DomainEventException(messageCode, messageArgs, message, cause);
+        SerializationException exception = new SerializationException(messageCode, messageArgs, message, cause);
 
         // then
         then(exception.getMessage()).isEqualTo(message);

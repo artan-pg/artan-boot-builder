@@ -19,7 +19,7 @@ package ir.artanpg.boot.infrastructure.adapter.driven.event;
 import ir.artanpg.boot.application.port.driven.event.DomainEventMulticaster;
 import ir.artanpg.boot.application.port.driven.event.DomainEventPublisher;
 import ir.artanpg.boot.domain.event.DomainEvent;
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 
 /**

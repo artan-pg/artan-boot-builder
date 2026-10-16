@@ -19,7 +19,7 @@ package ir.artanpg.boot.infrastructure.adapter.driven.event.serializer;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventMetadata;
 import ir.artanpg.boot.domain.event.EventType;
-import ir.artanpg.boot.domain.exception.SerializationException;
+import ir.artanpg.boot.domain.exception.event.SerializationException;
 import ir.artanpg.boot.domain.model.Identifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

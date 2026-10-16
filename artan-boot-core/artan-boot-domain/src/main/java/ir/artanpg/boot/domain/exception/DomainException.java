@@ -16,6 +16,10 @@
 
 package ir.artanpg.boot.domain.exception;
 
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.InterceptorVetoException;
+import ir.artanpg.boot.domain.exception.event.SerializationException;
+
 import java.io.Serial;
 import java.util.Arrays;
 

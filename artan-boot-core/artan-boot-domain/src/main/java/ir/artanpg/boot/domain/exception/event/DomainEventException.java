@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.exception;
+package ir.artanpg.boot.domain.exception.event;
+
+import ir.artanpg.boot.domain.exception.DomainException;
 
 import java.io.Serial;
 

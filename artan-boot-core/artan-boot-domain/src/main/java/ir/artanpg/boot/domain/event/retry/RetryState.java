@@ -16,7 +16,7 @@
 
 package ir.artanpg.boot.domain.event.retry;
 
-import ir.artanpg.boot.domain.exception.DomainEventException;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import org.jspecify.annotations.NonNull;
 
 import java.time.Duration;

@@ -18,7 +18,7 @@ package ir.artanpg.boot.application.port.driven.event;
 
 import ir.artanpg.boot.application.port.driving.event.DomainEventListener;
 import ir.artanpg.boot.domain.event.DomainEvent;
-import ir.artanpg.boot.domain.exception.InterceptorVetoException;
+import ir.artanpg.boot.domain.exception.event.InterceptorVetoException;
 import org.jspecify.annotations.NonNull;
 
 /**
