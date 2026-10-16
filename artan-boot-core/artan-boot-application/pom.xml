@@ -29,6 +29,7 @@
     <jacoco.excludes>
       ir/artanpg/boot/application/port/driven/event/**,
       ir/artanpg/boot/application/port/driving/event/**,
+      ir/artanpg/boot/application/port/driven/transaction/LockMode.class,
     </jacoco.excludes>
   </properties>
 

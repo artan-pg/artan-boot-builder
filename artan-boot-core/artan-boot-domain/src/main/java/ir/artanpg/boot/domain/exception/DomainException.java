@@ -19,6 +19,7 @@ package ir.artanpg.boot.domain.exception;
 import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import ir.artanpg.boot.domain.exception.event.InterceptorVetoException;
 import ir.artanpg.boot.domain.exception.event.SerializationException;
+import ir.artanpg.boot.domain.exception.transaction.TransactionalDomainException;
 
 import java.io.Serial;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.Arrays;
  * @see DomainEventException
  * @see SerializationException
  * @see InterceptorVetoException
+ * @see TransactionalDomainException
  * @since 0.1.0
  */
 public class DomainException extends RuntimeException {
