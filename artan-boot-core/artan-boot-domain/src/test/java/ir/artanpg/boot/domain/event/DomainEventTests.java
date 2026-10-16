@@ -16,6 +16,7 @@
 
 package ir.artanpg.boot.domain.event;
 
+import ir.artanpg.boot.domain.event.support.PayloadRedactionPolicy;
 import ir.artanpg.boot.domain.exception.DomainEventException;
 import ir.artanpg.boot.domain.model.IdGenerator;
 import ir.artanpg.boot.domain.model.Identifier;

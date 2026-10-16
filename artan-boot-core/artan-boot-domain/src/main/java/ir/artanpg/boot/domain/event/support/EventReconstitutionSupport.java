@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.event;
+package ir.artanpg.boot.domain.event.support;
 
+import ir.artanpg.boot.domain.event.AbstractDomainEvent;
+import ir.artanpg.boot.domain.event.DomainEvent;
+import ir.artanpg.boot.domain.event.EventMetadata;
+import ir.artanpg.boot.domain.event.EventType;
 import ir.artanpg.boot.domain.exception.DomainEventException;
 import ir.artanpg.boot.domain.model.Identifier;
 import org.jspecify.annotations.NonNull;

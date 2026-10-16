@@ -16,7 +16,7 @@
 
 package ir.artanpg.boot.infrastructure.adapter.driven.event;
 
-import ir.artanpg.boot.application.port.driven.event.DomainEventInterceptionContext;
+import ir.artanpg.boot.application.port.driven.event.support.DomainEventInterceptionContext;
 import ir.artanpg.boot.application.port.driven.event.DomainEventInterceptor;
 import ir.artanpg.boot.application.port.driving.event.DomainEventListener;
 import ir.artanpg.boot.application.port.driving.event.DomainEventSmartListener;

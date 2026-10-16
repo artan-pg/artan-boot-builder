@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.event;
+package ir.artanpg.boot.domain.event.support;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;

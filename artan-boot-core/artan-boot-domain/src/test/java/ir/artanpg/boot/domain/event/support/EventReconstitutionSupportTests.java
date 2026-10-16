@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.domain.event;
+package ir.artanpg.boot.domain.event.support;
 
+import ir.artanpg.boot.domain.event.AbstractDomainEvent;
+import ir.artanpg.boot.domain.event.DomainEvent;
+import ir.artanpg.boot.domain.event.EventMetadata;
+import ir.artanpg.boot.domain.event.EventType;
 import ir.artanpg.boot.domain.exception.DomainEventException;
 import ir.artanpg.boot.domain.model.Identifier;
+import org.assertj.core.api.BDDAssertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,7 +31,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
 
-import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 
 /**
@@ -216,22 +220,22 @@ class EventReconstitutionSupportTests {
                     SampleEvent.class, EVENT_ID, OCCURRED_AT, aggregateId, "payload", EVENT_TYPE, metadata);
 
             // then
-            then(event.getEventId())
+            BDDAssertions.then(event.getEventId())
                     .as("the reconstituted event must preserve the supplied event id")
                     .isEqualTo(EVENT_ID);
-            then(event.getOccurredAt())
+            BDDAssertions.then(event.getOccurredAt())
                     .as("the reconstituted event must preserve the supplied occurrence time")
                     .isEqualTo(OCCURRED_AT);
-            then(event.getAggregateId())
+            BDDAssertions.then(event.getAggregateId())
                     .as("the reconstituted event must preserve the exact aggregate identifier")
                     .isSameAs(aggregateId);
-            then(event.getPayload())
+            BDDAssertions.then(event.getPayload())
                     .as("the reconstituted event must preserve the supplied payload")
                     .isEqualTo("payload");
-            then(event.getEventType())
+            BDDAssertions.then(event.getEventType())
                     .as("the reconstituted event must preserve the supplied event type")
                     .isEqualTo(EVENT_TYPE);
-            then(event.getMetadata())
+            BDDAssertions.then(event.getMetadata())
                     .as("the reconstituted event must preserve the exact metadata instance")
                     .isSameAs(metadata);
         }
@@ -247,7 +251,7 @@ class EventReconstitutionSupportTests {
                     SampleEvent.class, EVENT_ID, OCCURRED_AT, aggregateId, "payload", EVENT_TYPE, null);
 
             // then
-            then(event.getMetadata())
+            BDDAssertions.then(event.getMetadata())
                     .as("a null metadata argument must be normalized to the shared empty metadata")
                     .isEqualTo(EventMetadata.empty());
         }

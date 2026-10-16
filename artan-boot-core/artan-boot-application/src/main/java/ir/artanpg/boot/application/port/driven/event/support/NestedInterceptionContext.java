@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package ir.artanpg.boot.application.port.driven.event;
+package ir.artanpg.boot.application.port.driven.event.support;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;

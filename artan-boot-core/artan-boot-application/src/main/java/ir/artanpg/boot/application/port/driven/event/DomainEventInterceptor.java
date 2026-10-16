@@ -16,6 +16,7 @@
 
 package ir.artanpg.boot.application.port.driven.event;
 
+import ir.artanpg.boot.application.port.driven.event.support.DomainEventInterceptionContext;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import org.jspecify.annotations.NonNull;
 
