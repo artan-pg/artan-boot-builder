@@ -52,6 +52,7 @@
     <mapstruct.version>1.6.3</mapstruct.version>
     <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
     <jspecify.version>1.0.1</jspecify.version>
+    <jetbrains-annotations.version>26.1.0</jetbrains-annotations.version>
 
     <glassfish-expressly.version>6.0.0</glassfish-expressly.version>
 
@@ -199,6 +200,11 @@
         <groupId>org.jspecify</groupId>
         <artifactId>jspecify</artifactId>
         <version>${jspecify.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jetbrains</groupId>
+        <artifactId>annotations</artifactId>
+        <version>${jetbrains-annotations.version}</version>
       </dependency>
 
       <dependency>
