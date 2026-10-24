@@ -16,12 +16,15 @@
 
 package ir.artanpg.boot.infrastructure.adapter.driven.event.deserializer;
 
+import ir.artanpg.boot.application.port.driven.event.DomainEventDescriptor;
+import ir.artanpg.boot.application.port.driven.event.DomainEventResolver;
 import ir.artanpg.boot.application.port.driven.event.EventDeserializer;
 import ir.artanpg.boot.domain.event.AbstractDomainEvent;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventMetadata;
-import ir.artanpg.boot.domain.event.support.EventReconstitutionSupport;
 import ir.artanpg.boot.domain.event.EventType;
+import ir.artanpg.boot.domain.event.support.EventReconstitutionSupport;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import ir.artanpg.boot.domain.exception.event.SerializationException;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.domain.model.IdentifierCodec;
@@ -31,8 +34,6 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,16 +48,20 @@ import java.util.Map;
  * format is defined by EventEnvelope and is validated before any
  * payload is decoded.
  *
- * <p>Type resolution is performed reflectively against the event class
- * hierarchy. The aggregate identifier type and the payload type are extracted
- * from the generic parameters of AbstractDomainEvent.
+ * <p>Structural type resolution (payload type and identifier type) is
+ * delegated to a {@link DomainEventResolver}, which consults the
+ * {@link ir.artanpg.boot.application.port.driven.event.DomainEventRegistry}.
+ * This eliminates reflective type extraction on every deserialization call
+ * and ensures that only registered event types are accepted.
  *
- * <p>This class is stateless apart from the supplied {@link ObjectMapper} and
- * is thread-safe as long as the mapper is thread-safe.
+ * <p>This class is stateless apart from the supplied {@link ObjectMapper}
+ * and {@link DomainEventResolver}, and is thread-safe as long as both
+ * collaborators are thread-safe.
  *
  * @author Mohammad Yazdian
  * @see EventDeserializer
  * @see EventEnvelope
+ * @see DomainEventResolver
  * @since 0.1.0
  */
 public final class JacksonEventDeserializer implements EventDeserializer {
@@ -74,25 +79,29 @@ public final class JacksonEventDeserializer implements EventDeserializer {
     private static final String SCALAR_KIND = "scalar";
     private static final String COMPOSITE_KIND = "composite";
 
-    // Constant for the number of type arguments
-    private static final int MIN_TYPE_ARGUMENTS_FOR_PAYLOAD = 2;
-    private static final int PAYLOAD_TYPE_ARGUMENT_INDEX = 1;
-    private static final int IDENTIFIER_TYPE_ARGUMENT_INDEX = 0;
-
     /**
      * Jackson mapper used for JSON parsing and payload conversion.
      */
     private final ObjectMapper objectMapper;
 
     /**
-     * Creates a deserializer with the given ObjectMapper.
+     * Resolver used to look up the event descriptor from the registry.
+     */
+    private final DomainEventResolver resolver;
+
+    /**
+     * Creates a deserializer with the given ObjectMapper and resolver.
      *
      * @param objectMapper Jackson mapper
-     * @throws SerializationException if {@code objectMapper} is {@code null}
+     * @param resolver     the event resolver backed by the registry
+     * @throws SerializationException if objectMapper or resolver is {@code null}
      */
-    public JacksonEventDeserializer(@NonNull ObjectMapper objectMapper) {
+    public JacksonEventDeserializer(@NonNull ObjectMapper objectMapper,
+                                    @NonNull DomainEventResolver resolver) {
         if (objectMapper == null) throw new SerializationException("The ObjectMapper cannot be null");
+        if (resolver == null) throw new SerializationException("The DomainEventResolver cannot be null");
         this.objectMapper = objectMapper;
+        this.resolver = resolver;
     }
 
     @Override
@@ -113,8 +122,12 @@ public final class JacksonEventDeserializer implements EventDeserializer {
 
             Instant occurredAt = Instant.parse(envelope.getOccurredAt());
             EventType eventType = toEventType(envelope.getEventType());
-            Identifier<?> aggregateId = toAggregateId(envelope.getAggregateId(), type);
-            Object payload = toPayload(envelope.getPayload(), type);
+
+            DomainEventDescriptor descriptor = resolveDescriptor(eventType);
+            validateClassMatch(eventType, descriptor.domainEvent(), type);
+
+            Identifier<?> aggregateId = toAggregateId(envelope.getAggregateId(), descriptor.identifierType());
+            Object payload = toPayload(envelope.getPayload(), descriptor.payloadType());
             EventMetadata metadata = toMetadata(envelope.getMetadata());
 
             return EventReconstitutionSupport.reconstitute(
@@ -140,10 +153,43 @@ public final class JacksonEventDeserializer implements EventDeserializer {
     }
 
     /**
+     * Resolves the event descriptor from the registry and translates
+     * {@link DomainEventException} into {@link SerializationException}.
+     *
+     * @param eventType the event type extracted from the envelope
+     * @return the resolved descriptor
+     * @throws SerializationException if the event type is not registered
+     */
+    private DomainEventDescriptor resolveDescriptor(EventType eventType) {
+        try {
+            return resolver.resolve(eventType);
+        } catch (DomainEventException ex) {
+            throw new SerializationException("The event type is not registered: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Validates that the class registered for the event type matches
+     * the class requested by the caller.
+     *
+     * @param eventType       the event type
+     * @param registeredClass the class registered in the registry
+     * @param requestedClass  the class requested by the caller
+     * @throws SerializationException if the classes do not match
+     */
+    private static void validateClassMatch(EventType eventType, Class<?> registeredClass, Class<?> requestedClass) {
+        if (!registeredClass.equals(requestedClass)) {
+            throw new SerializationException(String.format(
+                    "The event type [%s] is registered to class [%s], but the requested type is [%s]",
+                    eventType, registeredClass.getName(), requestedClass.getName()));
+        }
+    }
+
+    /**
      * Validates the mandatory fields of the parsed envelope.
      *
      * @param envelope the parsed envelope
-     * @throws SerializationException if the envelope is {@code null}
+     * @throws SerializationException if the envelope is {@code null},
      *                                or any required field is missing or {@code blank}
      */
     private static void validateEnvelope(EventEnvelope envelope) {
@@ -183,18 +229,13 @@ public final class JacksonEventDeserializer implements EventDeserializer {
     /**
      * Decodes the aggregate identifier from the envelope.
      *
-     * <p>The identifier type is resolved from the generic signature
-     * of the target event class. The value tree is mapped from the
-     * envelope's JSON form and decoded through
-     * {@link IdentifierCodec#fromWire}.
-     *
-     * @param node       the aggregate-id node
-     * @param eventClass the target event class used for type resolution
+     * @param node           the aggregate-id node
+     * @param identifierType the identifier type resolved from the registry
      * @return the decoded identifier
-     * @throws SerializationException if any node field is missing, the identifier type cannot be
-     *                                resolved, or decoding fails
+     * @throws SerializationException if any node field is missing or decoding fails
      */
-    private Identifier<?> toAggregateId(EventEnvelope.AggregateIdNode node, Class<?> eventClass) {
+    private Identifier<?> toAggregateId(EventEnvelope.AggregateIdNode node,
+                                        Class<? extends Identifier<?>> identifierType) {
         if (node.getIdentifierType() == null || node.getIdentifierType().isBlank()) {
             throw new SerializationException("The aggregateId.identifierType cannot be null or blank");
         }
@@ -210,7 +251,6 @@ public final class JacksonEventDeserializer implements EventDeserializer {
                 node.getIdentifierType(),
                 node.getValueType(),
                 valueNode);
-        Class<? extends Identifier<?>> identifierType = resolveIdentifierType(eventClass);
 
         try {
             return IdentifierCodec.fromWire(wire, identifierType);
@@ -298,16 +338,14 @@ public final class JacksonEventDeserializer implements EventDeserializer {
     }
 
     /**
-     * Converts the payload JSON node into the concrete payload type declared
-     * by the event class.
+     * Converts the payload JSON node into the concrete payload type.
      *
      * @param payloadNode the payload node
-     * @param eventClass  the target event class
+     * @param payloadType the payload type resolved from the registry
      * @return the converted payload object
-     * @throws SerializationException if the payload type cannot be resolved or conversion fails
+     * @throws SerializationException if conversion fails
      */
-    private Object toPayload(JsonNode payloadNode, Class<?> eventClass) {
-        Class<?> payloadType = resolvePayloadType(eventClass);
+    private Object toPayload(JsonNode payloadNode, Class<?> payloadType) {
         try {
             return objectMapper.convertValue(payloadNode, payloadType);
         } catch (JacksonException ex) {
@@ -337,86 +375,7 @@ public final class JacksonEventDeserializer implements EventDeserializer {
         if (node.getProperties() != null && !node.getProperties().isEmpty()) {
             builder.properties(node.getProperties());
         }
+
         return builder.build();
-    }
-
-    /**
-     * Resolves {@code P} from {@code AbstractDomainEvent<I, P>} on the event
-     * class hierarchy.
-     *
-     * @param eventClass the event class to inspect
-     * @return the resolved payload class
-     * @throws SerializationException if the payload type cannot be resolved
-     */
-    private static Class<?> resolvePayloadType(Class<?> eventClass) {
-        ParameterizedType parameterized = findAbstractDomainEventParameterizedType(eventClass);
-        Type[] args = parameterized.getActualTypeArguments();
-        if (args.length < MIN_TYPE_ARGUMENTS_FOR_PAYLOAD) {
-            throw new SerializationException("Cannot resolve payload type from event class: " + eventClass.getName());
-        }
-        return typeToClass(args[PAYLOAD_TYPE_ARGUMENT_INDEX]);
-    }
-
-    /**
-     * Resolves the aggregate identifier type from the event class hierarchy.
-     *
-     * @param eventClass the event class to inspect
-     * @return the resolved identifier class
-     * @throws SerializationException if the identifier type cannot be resolved
-     */
-    private static Class<? extends Identifier<?>> resolveIdentifierType(Class<?> eventClass) {
-        ParameterizedType parameterized = findAbstractDomainEventParameterizedType(eventClass);
-        Type[] args = parameterized.getActualTypeArguments();
-        return resolveAndValidateIdentifierType(args[IDENTIFIER_TYPE_ARGUMENT_INDEX]);
-    }
-
-    /**
-     * Finds the first parameterized superclass in the hierarchy whose raw type
-     * is a subtype of {@link AbstractDomainEvent}.
-     *
-     * @param eventClass the event class to inspect
-     * @return the parameterized type representing {@code AbstractDomainEvent<I, P>}
-     * @throws SerializationException if no such parameterized type is found
-     */
-    private static ParameterizedType findAbstractDomainEventParameterizedType(Class<?> eventClass) {
-        Class<?> current = eventClass;
-        while (current != Object.class) {
-            Type genericSuper = current.getGenericSuperclass();
-            if (genericSuper instanceof ParameterizedType parameterized) return parameterized;
-            current = current.getSuperclass();
-        }
-        throw new SerializationException(
-                "Cannot resolve AbstractDomainEvent generic type from event class: " + eventClass.getName());
-    }
-
-    /**
-     * Converts a reflective {@link Type} to a concrete class.
-     *
-     * @param type the type to convert
-     * @return the concrete class
-     * @throws SerializationException if the type is not a class or a parameterized type with a class raw type
-     */
-    private static Class<?> typeToClass(Type type) {
-        if (type instanceof Class<?> clazz) return clazz;
-        if (type instanceof ParameterizedType parameterized) return (Class<?>) parameterized.getRawType();
-        throw new SerializationException("Unsupported payload type argument: " + type.getTypeName());
-    }
-
-    /**
-     * Resolves a type argument to a class and validates that it implements
-     * {@link Identifier}.
-     *
-     * @param type the type argument to resolve
-     * @return the resolved identifier class
-     * @throws SerializationException if the resolved type does not implement {@link Identifier}
-     */
-    @SuppressWarnings("unchecked")
-    private static Class<? extends Identifier<?>> resolveAndValidateIdentifierType(Type type) {
-        Class<?> identifierClass = typeToClass(type);
-        if (!Identifier.class.isAssignableFrom(identifierClass)) {
-            throw new SerializationException(
-                    "Resolved aggregate id type does not implement Identifier: " + identifierClass.getName());
-        }
-        return (Class<? extends Identifier<?>>) identifierClass;
     }
 }

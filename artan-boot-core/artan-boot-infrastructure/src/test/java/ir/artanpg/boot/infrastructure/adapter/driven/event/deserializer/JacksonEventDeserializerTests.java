@@ -16,15 +16,19 @@
 
 package ir.artanpg.boot.infrastructure.adapter.driven.event.deserializer;
 
+import ir.artanpg.boot.application.port.driven.event.DomainEventDescriptor;
+import ir.artanpg.boot.application.port.driven.event.DomainEventResolver;
 import ir.artanpg.boot.domain.event.AbstractDomainEvent;
 import ir.artanpg.boot.domain.event.DomainEvent;
 import ir.artanpg.boot.domain.event.EventMetadata;
 import ir.artanpg.boot.domain.event.EventType;
+import ir.artanpg.boot.domain.exception.event.DomainEventException;
 import ir.artanpg.boot.domain.exception.event.SerializationException;
 import ir.artanpg.boot.domain.model.Identifier;
 import ir.artanpg.boot.infrastructure.adapter.driven.event.serializer.JacksonEventSerializer;
 import ir.artanpg.boot.infrastructure.adapter.driven.event.support.EventEnvelope;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,6 +46,9 @@ import java.util.Map;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link JacksonEventDeserializer}.
@@ -52,41 +59,64 @@ import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 class JacksonEventDeserializerTests {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final JacksonEventDeserializer deserializer = new JacksonEventDeserializer(objectMapper);
+    private DomainEventResolver resolver;
+    private JacksonEventDeserializer deserializer;
+
+    @BeforeEach
+    void setUp() {
+        resolver = mock(DomainEventResolver.class);
+        deserializer = new JacksonEventDeserializer(objectMapper, resolver);
+    }
 
     @Nested
     @DisplayName("Constructor")
     class Constructor {
 
         @Test
-        @DisplayName("Creates deserializer with given ObjectMapper")
-        void Constructor_ShouldCreateInstance_WhenObjectMapperProvided() {
+        @DisplayName("Should create instance when ObjectMapper and resolver are provided")
+        void constructor_ShouldCreateInstance_WhenObjectMapperAndResolverProvided() {
             // given
             ObjectMapper mapper = new ObjectMapper();
+            DomainEventResolver res = mock(DomainEventResolver.class);
 
             // when
-            JacksonEventDeserializer result = new JacksonEventDeserializer(mapper);
+            JacksonEventDeserializer result = new JacksonEventDeserializer(mapper, res);
 
             // then
             then(result)
-                    .as("deserializer instance created from a non-null ObjectMapper")
+                    .as("Deserializer instance must be created from valid dependencies")
                     .isNotNull();
             then(result.supportedFormat())
-                    .as("supportedFormat() returned by the newly created deserializer")
+                    .as("Supported format must match FORMAT constant")
                     .isEqualTo(JacksonEventDeserializer.FORMAT);
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
-        @DisplayName("Throws SerializationException when ObjectMapper is null")
-        void Constructor_ShouldThrowSerializationException_WhenObjectMapperIsNull() {
+        @DisplayName("Should throw SerializationException when ObjectMapper is null")
+        @SuppressWarnings("DataFlowIssue")
+        void constructor_ShouldThrowSerializationException_WhenObjectMapperIsNull() {
             // given
+            DomainEventResolver res = mock(DomainEventResolver.class);
 
             // when & then
-            thenThrownBy(() -> new JacksonEventDeserializer(null))
-                    .as("exception thrown when constructing the deserializer with a null ObjectMapper")
+            thenThrownBy(() -> new JacksonEventDeserializer(null, res))
+                    .as("Null ObjectMapper must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The ObjectMapper cannot be null");
+        }
+
+        @Test
+        @DisplayName("Should throw SerializationException when resolver is null")
+        @SuppressWarnings("DataFlowIssue")
+        void constructor_ShouldThrowSerializationException_WhenResolverIsNull() {
+            // given
+            ObjectMapper mapper = new ObjectMapper();
+
+            // when & then
+            thenThrownBy(() -> new JacksonEventDeserializer(mapper, null))
+                    .as("Null resolver must be rejected")
+                    .isInstanceOf(SerializationException.class)
+                    .hasMessage("The DomainEventResolver cannot be null");
         }
     }
 
@@ -95,9 +125,10 @@ class JacksonEventDeserializerTests {
     class Deserialize {
 
         @Test
-        @DisplayName("Deserializes a valid envelope into the target event type")
+        @DisplayName("Should deserialize valid envelope into target event type")
         void deserialize_ShouldReturnEvent_WhenEnvelopeIsValid() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             byte[] data = toJsonBytes(validEnvelope());
 
             // when
@@ -105,53 +136,54 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event)
-                    .as("deserialized event instance returned from a valid JSON envelope")
+                    .as("Deserialized event must not be null")
                     .isNotNull();
             then(event.getEventId())
-                    .as("eventId restored from the envelope eventId field")
+                    .as("eventId must be restored from the envelope")
                     .isEqualTo("evt-1");
             then(event.getOccurredAt())
-                    .as("occurredAt parsed back to an Instant from the ISO-8601 envelope value")
+                    .as("occurredAt must be parsed back to an Instant")
                     .isEqualTo(Instant.parse("2026-01-15T10:30:00Z"));
             then(event.getEventType())
-                    .as("eventType reconstructed from the envelope eventType node")
+                    .as("eventType must be reconstructed from the envelope node")
                     .isEqualTo(EventType.of("SampleCreated", "sample", "1"));
             then(event.getAggregateId().value())
-                    .as("aggregate identifier decoded from the envelope aggregateId scalar value")
+                    .as("aggregate identifier must be decoded from the envelope scalar value")
                     .isEqualTo("agg-1");
             then(event.getPayload().name())
-                    .as("payload.name converted into the target payload record")
+                    .as("payload.name must be converted into the target payload record")
                     .isEqualTo("widget");
             then(event.getPayload().quantity())
-                    .as("payload.quantity converted into the target payload record")
+                    .as("payload.quantity must be converted into the target payload record")
                     .isEqualTo(3);
             then(event.getMetadata().getCorrelationId())
-                    .as("metadata.correlationId mapped into EventMetadata")
+                    .as("metadata.correlationId must be mapped into EventMetadata")
                     .isEqualTo("corr-1");
             then(event.getMetadata().getCausationId())
-                    .as("metadata.causationId mapped into EventMetadata")
+                    .as("metadata.causationId must be mapped into EventMetadata")
                     .isEqualTo("cause-1");
             then(event.getMetadata().getTenant())
-                    .as("metadata.tenant mapped into EventMetadata")
+                    .as("metadata.tenant must be mapped into EventMetadata")
                     .isEqualTo("tenant-1");
             then(event.getMetadata().getTraceId())
-                    .as("metadata.traceId mapped into EventMetadata")
+                    .as("metadata.traceId must be mapped into EventMetadata")
                     .isEqualTo("trace-1");
             then(event.getMetadata().getSpanId())
-                    .as("metadata.spanId mapped into EventMetadata")
+                    .as("metadata.spanId must be mapped into EventMetadata")
                     .isEqualTo("span-1");
             then(event.getMetadata().getUserId())
-                    .as("metadata.userId mapped into EventMetadata")
+                    .as("metadata.userId must be mapped into EventMetadata")
                     .isEqualTo("user-1");
             then(event.getMetadata().getProperty("extra"))
-                    .as("custom metadata property 'extra' preserved on EventMetadata")
+                    .as("Custom metadata property 'extra' must be preserved")
                     .isEqualTo("extra-value");
         }
 
         @Test
-        @DisplayName("Deserializes envelope with null metadata as empty metadata")
+        @DisplayName("Should use empty metadata when metadata node is null")
         void deserialize_ShouldUseEmptyMetadata_WhenMetadataNodeIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.setMetadata(null);
             byte[] data = toJsonBytes(envelope);
@@ -161,14 +193,15 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event.getMetadata())
-                    .as("EventMetadata falls back to EventMetadata.empty() when the envelope metadata node is absent")
+                    .as("EventMetadata must fall back to empty() when the envelope metadata node is absent")
                     .isEqualTo(EventMetadata.empty());
         }
 
         @Test
-        @DisplayName("Deserializes envelope with empty metadata properties")
+        @DisplayName("Should ignore empty properties map in metadata")
         void deserialize_ShouldIgnoreEmptyProperties_WhenPropertiesMapIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             EventEnvelope.MetadataNode metadata = new EventEnvelope.MetadataNode();
             metadata.setCorrelationId("corr-only");
@@ -181,17 +214,18 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event.getMetadata().getCorrelationId())
-                    .as("correlationId preserved even when the properties map is empty")
+                    .as("correlationId must be preserved even when the properties map is empty")
                     .isEqualTo("corr-only");
             then(event.getMetadata().getProperties())
-                    .as("EventMetadata properties remain empty when the envelope supplied an empty map")
+                    .as("EventMetadata properties must remain empty when the envelope supplied an empty map")
                     .isEmpty();
         }
 
         @Test
-        @DisplayName("Deserializes envelope when metadata properties is null")
+        @DisplayName("Should ignore null properties map in metadata")
         void deserialize_ShouldIgnoreNullProperties_WhenPropertiesMapIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             EventEnvelope.MetadataNode metadata = new EventEnvelope.MetadataNode();
             metadata.setCorrelationId("corr-null-props");
@@ -204,17 +238,21 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event.getMetadata().getCorrelationId())
-                    .as("correlationId preserved even when the properties map is null")
+                    .as("correlationId must be preserved even when the properties map is null")
                     .isEqualTo("corr-null-props");
             then(event.getMetadata().getProperties())
-                    .as("EventMetadata properties remain empty when the envelope supplied a null map")
+                    .as("EventMetadata properties must remain empty when the envelope supplied a null map")
                     .isEmpty();
         }
 
         @Test
-        @DisplayName("Deserializes aggregate id with composite value node")
+        @DisplayName("Should decode composite aggregate id correctly")
         void deserialize_ShouldDecodeCompositeAggregateId_WhenValueIsComposite() {
             // given
+            EventType eventType = EventType.of("SampleCreated", "sample", "1");
+            DomainEventDescriptor descriptor = mockDescriptor(eventType, CompositeSampleEvent.class,
+                    SamplePayload.class, CompositeSampleIdentifier.class);
+            doReturn(descriptor).when(resolver).resolve(eventType);
             EventEnvelope envelope = validEnvelope();
             EventEnvelope.AggregateIdNode aggregateId = new EventEnvelope.AggregateIdNode();
             aggregateId.setIdentifierType(CompositeSampleIdentifier.class.getName());
@@ -228,83 +266,103 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event.getAggregateId().value().partA())
-                    .as("composite aggregate id 'partA' reconstructed from its nested scalar node")
+                    .as("Composite aggregate id 'partA' must be reconstructed from its nested scalar node")
                     .isEqualTo("part-a");
             then(event.getAggregateId().value().partB())
-                    .as("composite aggregate id 'partB' reconstructed from its nested scalar node")
+                    .as("Composite aggregate id 'partB' must be reconstructed from its nested scalar node")
                     .isEqualTo("part-b");
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
-        @DisplayName("Throws SerializationException when data is null")
+        @DisplayName("Should throw SerializationException when data is null")
+        @SuppressWarnings("DataFlowIssue")
         void deserialize_ShouldThrowSerializationException_WhenDataIsNull() {
             // given
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(null, SampleEvent.class))
-                    .as("exception thrown when the serialized data array is null")
+                    .as("Null data must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The serialized data cannot be null or empty");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when data is empty")
+        @DisplayName("Should throw SerializationException when data is empty")
         void deserialize_ShouldThrowSerializationException_WhenDataIsEmpty() {
             // given
             byte[] data = new byte[0];
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when the serialized data array is empty")
+                    .as("Empty data must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The serialized data cannot be null or empty");
         }
 
-        @SuppressWarnings("DataFlowIssue")
         @Test
-        @DisplayName("Throws SerializationException when target type is null")
+        @DisplayName("Should throw SerializationException when target type is null")
+        @SuppressWarnings("DataFlowIssue")
         void deserialize_ShouldThrowSerializationException_WhenTypeIsNull() {
             // given
             byte[] data = toJsonBytes(validEnvelope());
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, null))
-                    .as("exception thrown when the target event type is null")
+                    .as("Null target type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The target event type cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when type does not extend AbstractDomainEvent")
+        @DisplayName("Should throw SerializationException when type does not extend AbstractDomainEvent")
         void deserialize_ShouldThrowSerializationException_WhenTypeDoesNotExtendAbstractDomainEvent() {
             // given
             byte[] data = toJsonBytes(validEnvelope());
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, NonAbstractEvent.class))
-                    .as("exception thrown when the target type does not extend AbstractDomainEvent")
+                    .as("Non-AbstractDomainEvent types must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("The target event type must extend AbstractDomainEvent");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when AbstractDomainEvent generic type cannot be resolved")
-        void deserialize_ShouldThrowSerializationException_WhenAbstractDomainEventGenericTypeCannotBeResolved() {
+        @DisplayName("Should throw SerializationException when registered class differs from requested type")
+        void deserialize_ShouldThrowSerializationException_WhenRegisteredClassDiffersFromRequestedType() {
             // given
+            stubResolverFor(MultiLevelEvent.class, SamplePayload.class);
             byte[] data = toJsonBytes(validEnvelope());
 
             // when & then
-            thenThrownBy(() -> deserializer.deserialize(data, RawEvent.class))
-                    .as("exception thrown when AbstractDomainEvent generic type cannot be resolved from a raw subclass")
+            thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
+                    .as("Mismatch between registered and requested class must be rejected")
                     .isInstanceOf(SerializationException.class)
-                    .hasMessageContaining("Cannot resolve AbstractDomainEvent generic type from event class");
+                    .hasMessageContaining("is registered to class")
+                    .hasMessageContaining("but the requested type is");
         }
 
         @Test
-        @DisplayName("Deserializes event when AbstractDomainEvent is reached via non-generic intermediate")
+        @DisplayName("Should throw SerializationException when resolver throws DomainEventException")
+        void deserialize_ShouldThrowSerializationException_WhenResolverThrowsDomainEventException() {
+            // given
+            EventType eventType = EventType.of("SampleCreated", "sample", "1");
+            doThrow(
+                    new DomainEventException("No domain event class registered for event type"))
+                    .when(resolver).resolve(eventType);
+            byte[] data = toJsonBytes(validEnvelope());
+
+            // when & then
+            thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
+                    .as("DomainEventException from resolver must be translated to SerializationException")
+                    .isInstanceOf(SerializationException.class)
+                    .hasMessageContaining("The event type is not registered");
+        }
+
+        @Test
+        @DisplayName("Should deserialize event when AbstractDomainEvent is reached via intermediate class")
         void deserialize_ShouldReturnEvent_WhenAbstractDomainEventFoundViaIntermediateClass() {
             // given
+            stubResolverFor(MultiLevelEvent.class, SamplePayload.class);
             byte[] data = toJsonBytes(validEnvelope());
 
             // when
@@ -312,23 +370,24 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event)
-                    .as("deserialized event resolved via a non-generic intermediate superclass")
+                    .as("Deserialized event resolved via a non-generic intermediate superclass must not be null")
                     .isNotNull();
             then(event.getEventId())
-                    .as("eventId restored when AbstractDomainEvent is reached through an intermediate class")
+                    .as("eventId must be restored through intermediate class hierarchy")
                     .isEqualTo("evt-1");
             then(event.getAggregateId().value())
-                    .as("aggregate id restored when AbstractDomainEvent is reached through an intermediate class")
+                    .as("aggregate id must be restored through intermediate class hierarchy")
                     .isEqualTo("agg-1");
             then(event.getPayload().name())
-                    .as("payload restored when AbstractDomainEvent is reached through an intermediate class")
+                    .as("payload must be restored through intermediate class hierarchy")
                     .isEqualTo("widget");
         }
 
         @Test
-        @DisplayName("Deserializes event when payload type is a parameterized type")
+        @DisplayName("Should deserialize event when payload type is a parameterized type")
         void deserialize_ShouldReturnEvent_WhenPayloadTypeIsParameterizedType() {
             // given
+            stubResolverFor(MapPayloadEvent.class, Map.class);
             EventEnvelope envelope = validEnvelope();
             ObjectNode mapPayload = objectMapper.createObjectNode();
             mapPayload.put("key1", "value1");
@@ -341,84 +400,42 @@ class JacksonEventDeserializerTests {
 
             // then
             then(event)
-                    .as("deserialized event whose payload type is a ParameterizedType (Map<String, String>)")
+                    .as("Deserialized event whose payload type is a ParameterizedType must not be null")
                     .isNotNull();
             then(event.getPayload())
-                    .as("payload map converted from JSON object to Map<String, String>")
-                    .containsEntry("key1", "value1");
-            then(event.getPayload())
-                    .as("payload map contains every expected JSON entry")
+                    .as("Payload map must contain every expected JSON entry")
+                    .containsEntry("key1", "value1")
                     .containsEntry("key2", "value2");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when payload type argument is unsupported")
-        void deserialize_ShouldThrowSerializationException_WhenPayloadTypeArgumentIsUnsupported() {
-            // given
-            byte[] data = toJsonBytes(validEnvelope());
-
-            // when & then
-            thenThrownBy(() -> deserializer.deserialize(data, OpenPayloadEvent.class))
-                    .as("exception thrown when the payload type argument is a TypeVariable rather than a concrete" +
-                            " class")
-                    .isInstanceOf(SerializationException.class)
-                    .hasMessageContaining("Unsupported payload type argument");
-        }
-
-        @Test
-        @DisplayName("Throws SerializationException when payload type cannot be resolved")
-        void deserialize_ShouldThrowSerializationException_WhenPayloadTypeCannotBeResolved() {
-            // given
-            byte[] data = toJsonBytes(validEnvelope());
-
-            // when & then
-            thenThrownBy(() -> deserializer.deserialize(data, SingleArgEvent.class))
-                    .as("exception thrown when only one type argument is available to resolve the payload type")
-                    .isInstanceOf(SerializationException.class)
-                    .hasMessageContaining("Cannot resolve payload type from event class");
-        }
-
-        @Test
-        @DisplayName("Throws SerializationException when resolved id type does not implement Identifier")
-        void deserialize_ShouldThrowSerializationException_WhenResolvedIdTypeDoesNotImplementIdentifier() {
-            // given
-            byte[] data = toJsonBytes(validEnvelope());
-
-            // when & then
-            thenThrownBy(() -> deserializer.deserialize(data, SwappedTypeArgsEvent.class))
-                    .as("exception thrown when the resolved id type argument does not implement Identifier")
-                    .isInstanceOf(SerializationException.class)
-                    .hasMessageContaining("Resolved aggregate id type does not implement Identifier");
-        }
-
-        @Test
-        @DisplayName("Throws SerializationException when JSON is malformed")
+        @DisplayName("Should throw SerializationException when JSON is malformed")
         void deserialize_ShouldThrowSerializationException_WhenJsonIsMalformed() {
             // given
             byte[] data = "{not-json".getBytes(StandardCharsets.UTF_8);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when the input bytes are not a valid JSON document")
+                    .as("Malformed JSON must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("Failed to deserialize event to type");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when envelope is null")
+        @DisplayName("Should throw SerializationException when envelope is null")
         void deserialize_ShouldThrowSerializationException_WhenEnvelopeIsNull() {
             // given
             byte[] data = "null".getBytes(StandardCharsets.UTF_8);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when the JSON document is a top-level null literal")
+                    .as("Top-level null literal must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The event envelope cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when formatVersion is unsupported")
+        @DisplayName("Should throw SerializationException when formatVersion is unsupported")
         void deserialize_ShouldThrowSerializationException_WhenFormatVersionUnsupported() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -427,13 +444,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when formatVersion does not match CURRENT_FORMAT_VERSION")
+                    .as("Unsupported formatVersion must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("Unsupported event envelope formatVersion");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventId is null")
+        @DisplayName("Should throw SerializationException when eventId is null")
         void deserialize_ShouldThrowSerializationException_WhenEventIdIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -442,13 +459,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventId is null")
+                    .as("Null eventId must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventId cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventId is blank")
+        @DisplayName("Should throw SerializationException when eventId is blank")
         void deserialize_ShouldThrowSerializationException_WhenEventIdIsBlank() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -457,13 +474,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventId is blank (whitespace only)")
+                    .as("Blank eventId must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventId cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventId is empty string")
+        @DisplayName("Should throw SerializationException when eventId is empty string")
         void deserialize_ShouldThrowSerializationException_WhenEventIdIsEmpty() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -472,13 +489,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventId is an empty string")
+                    .as("Empty eventId must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventId cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when occurredAt is null")
+        @DisplayName("Should throw SerializationException when occurredAt is null")
         void deserialize_ShouldThrowSerializationException_WhenOccurredAtIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -487,13 +504,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope occurredAt is null")
+                    .as("Null occurredAt must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope occurredAt cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when occurredAt is blank")
+        @DisplayName("Should throw SerializationException when occurredAt is blank")
         void deserialize_ShouldThrowSerializationException_WhenOccurredAtIsBlank() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -502,13 +519,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope occurredAt is blank (whitespace only)")
+                    .as("Blank occurredAt must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope occurredAt cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when occurredAt is empty string")
+        @DisplayName("Should throw SerializationException when occurredAt is empty string")
         void deserialize_ShouldThrowSerializationException_WhenOccurredAtIsEmpty() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -517,13 +534,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope occurredAt is an empty string")
+                    .as("Empty occurredAt must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope occurredAt cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventType is null")
+        @DisplayName("Should throw SerializationException when eventType is null")
         void deserialize_ShouldThrowSerializationException_WhenEventTypeIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -532,13 +549,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventType node is null")
+                    .as("Null eventType node must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventType.name cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventType.name is null")
+        @DisplayName("Should throw SerializationException when eventType.name is null")
         void deserialize_ShouldThrowSerializationException_WhenEventTypeNameIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -549,13 +566,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventType.name is null")
+                    .as("Null eventType.name must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventType.name cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventType.name is blank")
+        @DisplayName("Should throw SerializationException when eventType.name is blank")
         void deserialize_ShouldThrowSerializationException_WhenEventTypeNameIsBlank() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -566,13 +583,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventType.name is blank (whitespace only)")
+                    .as("Blank eventType.name must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventType.name cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when eventType.name is empty string")
+        @DisplayName("Should throw SerializationException when eventType.name is empty string")
         void deserialize_ShouldThrowSerializationException_WhenEventTypeNameIsEmpty() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -583,13 +600,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope eventType.name is an empty string")
+                    .as("Empty eventType.name must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope eventType.name cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId is null")
+        @DisplayName("Should throw SerializationException when aggregateId is null")
         void deserialize_ShouldThrowSerializationException_WhenAggregateIdIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -598,13 +615,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope aggregateId node is null")
+                    .as("Null aggregateId node must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope aggregateId cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when validateEnvelope sees null payload via reflection")
+        @DisplayName("Should throw SerializationException when validateEnvelope sees null payload via reflection")
         void deserialize_ShouldThrowSerializationException_WhenValidateEnvelopePayloadIsNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -626,13 +643,13 @@ class JacksonEventDeserializerTests {
                     throw ex.getCause();
                 }
             })
-                    .as("exception thrown when validateEnvelope is invoked with a null payload field")
+                    .as("Null payload field must be rejected by validateEnvelope")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope payload cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when payload is JSON null node")
+        @DisplayName("Should throw SerializationException when payload is JSON null node")
         void deserialize_ShouldThrowSerializationException_WhenPayloadIsJsonNull() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -641,13 +658,13 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope payload is an in-memory NullNode instance")
+                    .as("In-memory NullNode payload must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope payload cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when payload is explicit JSON null in wire data")
+        @DisplayName("Should throw SerializationException when payload is explicit JSON null in wire data")
         void deserialize_ShouldThrowSerializationException_WhenPayloadIsExplicitJsonNull() {
             // given
             String json = """
@@ -668,135 +685,144 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when envelope payload is an explicit JSON null literal in the wire data")
+                    .as("Explicit JSON null payload must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The envelope payload cannot be null");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.identifierType is null")
+        @DisplayName("Should throw SerializationException when aggregateId.identifierType is null")
         void deserialize_ShouldThrowSerializationException_WhenIdentifierTypeIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setIdentifierType(null);
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.identifierType is null")
+                    .as("Null aggregateId.identifierType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.identifierType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.identifierType is blank")
+        @DisplayName("Should throw SerializationException when aggregateId.identifierType is blank")
         void deserialize_ShouldThrowSerializationException_WhenIdentifierTypeIsBlank() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setIdentifierType("   ");
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.identifierType is blank (whitespace only)")
+                    .as("Blank aggregateId.identifierType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.identifierType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.identifierType is empty")
+        @DisplayName("Should throw SerializationException when aggregateId.identifierType is empty")
         void deserialize_ShouldThrowSerializationException_WhenIdentifierTypeIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setIdentifierType("");
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.identifierType is an empty string")
+                    .as("Empty aggregateId.identifierType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.identifierType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.valueType is null")
+        @DisplayName("Should throw SerializationException when aggregateId.valueType is null")
         void deserialize_ShouldThrowSerializationException_WhenValueTypeIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setValueType(null);
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.valueType is null")
+                    .as("Null aggregateId.valueType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.valueType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.valueType is blank")
+        @DisplayName("Should throw SerializationException when aggregateId.valueType is blank")
         void deserialize_ShouldThrowSerializationException_WhenValueTypeIsBlank() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setValueType("   ");
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.valueType is blank (whitespace only)")
+                    .as("Blank aggregateId.valueType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.valueType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.valueType is empty")
+        @DisplayName("Should throw SerializationException when aggregateId.valueType is empty")
         void deserialize_ShouldThrowSerializationException_WhenValueTypeIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setValueType("");
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.valueType is an empty string")
+                    .as("Empty aggregateId.valueType must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.valueType cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.value is null")
+        @DisplayName("Should throw SerializationException when aggregateId.value is null")
         void deserialize_ShouldThrowSerializationException_WhenAggregateIdValueIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setValue(null);
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.value node is null")
+                    .as("Null aggregateId.value node must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.value cannot be null or empty");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.value is empty")
+        @DisplayName("Should throw SerializationException when aggregateId.value is empty")
         void deserialize_ShouldThrowSerializationException_WhenAggregateIdValueIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setValue(Map.of());
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.value node is an empty map")
+                    .as("Empty aggregateId.value node must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.value cannot be null or empty");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.value.kind is missing")
+        @DisplayName("Should throw SerializationException when aggregateId.value.kind is missing")
         void deserialize_ShouldThrowSerializationException_WhenValueKindIsMissing() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("type", String.class.getName());
@@ -806,15 +832,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.value.kind key is missing from the value node")
+                    .as("Missing aggregateId.value.kind must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The aggregateId.value.kind must be a string");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId.value.kind is unknown")
+        @DisplayName("Should throw SerializationException when aggregateId.value.kind is unknown")
         void deserialize_ShouldThrowSerializationException_WhenValueKindIsUnknown() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "unknown");
@@ -825,15 +852,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when aggregateId.value.kind carries an unrecognized discriminator")
+                    .as("Unknown aggregateId.value.kind must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("Unknown aggregateId.value.kind");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when scalar type is blank")
+        @DisplayName("Should throw SerializationException when scalar type is blank")
         void deserialize_ShouldThrowSerializationException_WhenScalarTypeIsBlank() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "scalar");
@@ -844,15 +872,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when scalar value node 'type' is blank (whitespace only)")
+                    .as("Blank scalar type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The scalar type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when scalar type is empty")
+        @DisplayName("Should throw SerializationException when scalar type is empty")
         void deserialize_ShouldThrowSerializationException_WhenScalarTypeIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "scalar");
@@ -863,15 +892,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when scalar value node 'type' is an empty string")
+                    .as("Empty scalar type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The scalar type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when scalar type is null")
+        @DisplayName("Should throw SerializationException when scalar type is null")
         void deserialize_ShouldThrowSerializationException_WhenScalarTypeIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "scalar");
@@ -882,15 +912,17 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when scalar value node 'type' is null")
+                    .as("Null scalar type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The scalar type cannot be null or blank");
         }
 
+
         @Test
-        @DisplayName("Throws SerializationException when scalar type is not a string")
+        @DisplayName("Should throw SerializationException when scalar type is not a string")
         void deserialize_ShouldThrowSerializationException_WhenScalarTypeIsNotString() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "scalar");
@@ -901,15 +933,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when scalar value node 'type' is a non-string JSON value")
+                    .as("Non-string scalar type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The scalar type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when scalar value is not a string")
+        @DisplayName("Should throw SerializationException when scalar value is not a string")
         void deserialize_ShouldThrowSerializationException_WhenScalarValueIsNotString() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "scalar");
@@ -920,15 +953,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when scalar value node 'value' is not a string")
+                    .as("Non-string scalar value must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The scalar value must be a string");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when composite type is blank")
+        @DisplayName("Should throw SerializationException when composite type is blank")
         void deserialize_ShouldThrowSerializationException_WhenCompositeTypeIsBlank() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "composite");
@@ -939,15 +973,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when composite value node 'type' is blank (whitespace only)")
+                    .as("Blank composite type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The composite type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when composite type is empty")
+        @DisplayName("Should throw SerializationException when composite type is empty")
         void deserialize_ShouldThrowSerializationException_WhenCompositeTypeIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "composite");
@@ -958,15 +993,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when composite value node 'type' is an empty string")
+                    .as("Empty composite type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The composite type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when composite type is null")
+        @DisplayName("Should throw SerializationException when composite type is null")
         void deserialize_ShouldThrowSerializationException_WhenCompositeTypeIsNull() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "composite");
@@ -977,15 +1013,17 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when composite value node 'type' is null")
+                    .as("Null composite type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The composite type cannot be null or blank");
         }
 
+
         @Test
-        @DisplayName("Throws SerializationException when composite type is not a string")
+        @DisplayName("Should throw SerializationException when composite type is not a string")
         void deserialize_ShouldThrowSerializationException_WhenCompositeTypeIsNotString() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "composite");
@@ -996,15 +1034,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when composite value node 'type' is a non-string JSON value")
+                    .as("Non-string composite type must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The composite type cannot be null or blank");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when composite fields is not a map")
+        @DisplayName("Should throw SerializationException when composite fields is not a map")
         void deserialize_ShouldThrowSerializationException_WhenCompositeFieldsIsNotMap() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", "composite");
@@ -1015,15 +1054,19 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when composite value node 'fields' is not a JSON object")
+                    .as("Non-map composite fields must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessage("The composite fields must be a map");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when composite field value is not a map")
+        @DisplayName("Should throw SerializationException when composite field value is not a map")
         void deserialize_ShouldThrowSerializationException_WhenCompositeFieldValueIsNotMap() {
             // given
+            EventType eventType = EventType.of("SampleCreated", "sample", "1");
+            DomainEventDescriptor descriptor = mockDescriptor(eventType, CompositeSampleEvent.class,
+                    SamplePayload.class, CompositeSampleIdentifier.class);
+            doReturn(descriptor).when(resolver).resolve(eventType);
             EventEnvelope envelope = validEnvelope();
             Map<String, Object> fields = new LinkedHashMap<>();
             fields.put("partA", "not-a-node");
@@ -1038,15 +1081,16 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, CompositeSampleEvent.class))
-                    .as("exception thrown when a composite field entry is not a nested value node map")
+                    .as("Non-map composite field entry must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("must be a value node map");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when payload cannot be converted")
+        @DisplayName("Should throw SerializationException when payload cannot be converted")
         void deserialize_ShouldThrowSerializationException_WhenPayloadConversionFails() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             ObjectNode badPayload = objectMapper.createObjectNode();
             badPayload.put("name", "widget");
@@ -1056,79 +1100,67 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when payload conversion fails because 'quantity' is not an int")
+                    .as("Invalid payload conversion must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("Failed to convert payload to type");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when aggregateId decoding fails")
+        @DisplayName("Should throw SerializationException when aggregateId decoding fails")
         void deserialize_ShouldThrowSerializationException_WhenAggregateIdDecodingFails() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventEnvelope envelope = validEnvelope();
             envelope.getAggregateId().setIdentifierType("com.example.UnknownIdentifier");
             byte[] data = toJsonBytes(envelope);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("exception thrown when IdentifierCodec cannot resolve the declared identifier type")
+                    .as("Failed aggregateId decoding must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("Failed to decode aggregateId");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when no parameterized AbstractDomainEvent found")
-        void deserialize_ShouldThrowSerializationException_WhenNoParameterizedAbstractDomainEventFound() {
-            // given
-            byte[] data = toJsonBytes(validEnvelope());
-
-            // when & then
-            thenThrownBy(() -> deserializer.deserialize(data, RawEvent.class))
-                    .as("exception thrown when no parameterized AbstractDomainEvent found in hierarchy")
-                    .isInstanceOf(SerializationException.class)
-                    .hasMessageContaining("Cannot resolve AbstractDomainEvent generic type from event class");
-        }
-
-        @Test
-        @DisplayName("Throws SerializationException when required eventId field is missing")
+        @DisplayName("Should throw SerializationException when required eventId field is missing")
         void deserialize_ShouldThrowSerializationException_WhenEventIdIsMissing() {
             // given
             String incompleteJson = """
-            {
-              "formatVersion": 1,
-              "occurredAt": "2026-01-15T10:30:00Z",
-              "eventType": { "name": "SampleCreated", "category": "sample", "version": "1" },
-              "aggregateId": {
-                "identifierType": "%s",
-                "valueType": "java.lang.String",
-                "value": { "kind": "scalar", "type": "java.lang.String", "value": "agg-1" }
-              },
-              "payload": { "name": "widget", "quantity": 1 }
-            }
-            """.formatted(SampleIdentifier.class.getName());
+                    {
+                      "formatVersion": 1,
+                      "occurredAt": "2026-01-15T10:30:00Z",
+                      "eventType": { "name": "SampleCreated", "category": "sample", "version": "1" },
+                      "aggregateId": {
+                        "identifierType": "%s",
+                        "valueType": "java.lang.String",
+                        "value": { "kind": "scalar", "type": "java.lang.String", "value": "agg-1" }
+                      },
+                      "payload": { "name": "widget", "quantity": 1 }
+                    }
+                    """.formatted(SampleIdentifier.class.getName());
             byte[] data = incompleteJson.getBytes(StandardCharsets.UTF_8);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("deserialize must reject an envelope that omits the mandatory eventId field")
+                    .as("Missing mandatory eventId field must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("eventId");
         }
 
         @Test
-        @DisplayName("Throws SerializationException when JSON body is truncated")
+        @DisplayName("Should throw SerializationException when JSON body is truncated")
         void deserialize_ShouldThrowSerializationException_WhenJsonIsIncomplete() {
             // given
             byte[] data = "{\"formatVersion\":1,\"eventId\":\"evt-1\"".getBytes(StandardCharsets.UTF_8);
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("deserialize must reject truncated or incomplete JSON input")
+                    .as("Truncated or incomplete JSON input must be rejected")
                     .isInstanceOf(SerializationException.class);
         }
 
         @Test
-        @DisplayName("Throws SerializationException when formatVersion is not supported")
+        @DisplayName("Should throw SerializationException when formatVersion is not supported")
         void deserialize_ShouldThrowSerializationException_WhenFormatVersionIsInvalid() {
             // given
             EventEnvelope envelope = validEnvelope();
@@ -1137,7 +1169,7 @@ class JacksonEventDeserializerTests {
 
             // when & then
             thenThrownBy(() -> deserializer.deserialize(data, SampleEvent.class))
-                    .as("deserialize must reject an unsupported envelope formatVersion")
+                    .as("Unsupported envelope formatVersion must be rejected")
                     .isInstanceOf(SerializationException.class)
                     .hasMessageContaining("formatVersion");
         }
@@ -1148,8 +1180,8 @@ class JacksonEventDeserializerTests {
     class SupportedFormat {
 
         @Test
-        @DisplayName("Returns application/json format identifier")
-        void SupportedFormat_ShouldReturnApplicationJson_WhenCalled() {
+        @DisplayName("Should return application/json format identifier")
+        void supportedFormat_ShouldReturnApplicationJson_WhenCalled() {
             // given
 
             // when
@@ -1157,10 +1189,10 @@ class JacksonEventDeserializerTests {
 
             // then
             then(format)
-                    .as("format identifier returned by supportedFormat()")
+                    .as("Format identifier returned by supportedFormat() must be application/json")
                     .isEqualTo("application/json");
             then(format)
-                    .as("format identifier matches the JacksonEventDeserializer.FORMAT constant")
+                    .as("Format identifier must match the FORMAT constant")
                     .isEqualTo(JacksonEventDeserializer.FORMAT);
         }
     }
@@ -1172,9 +1204,10 @@ class JacksonEventDeserializerTests {
         private final JacksonEventSerializer serializer = new JacksonEventSerializer(objectMapper);
 
         @Test
-        @DisplayName("Preserves identity and payload when metadata is empty")
+        @DisplayName("Should preserve identity and payload when metadata is empty")
         void roundTrip_ShouldPreserveIdentityAndPayload_WhenMetadataIsEmpty() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             SampleEvent original = new SampleEvent(
                     "evt-empty-meta",
                     Instant.parse("2026-03-01T12:00:00Z"),
@@ -1189,29 +1222,30 @@ class JacksonEventDeserializerTests {
 
             // then
             then(restored.getEventId())
-                    .as("eventId should survive a full serialize/deserialize round-trip")
+                    .as("eventId must survive a full serialize/deserialize round-trip")
                     .isEqualTo(original.getEventId());
             then(restored.getOccurredAt())
-                    .as("occurredAt should survive a full serialize/deserialize round-trip")
+                    .as("occurredAt must survive a full serialize/deserialize round-trip")
                     .isEqualTo(original.getOccurredAt());
             then(restored.getEventType())
-                    .as("eventType coordinates should survive a full serialize/deserialize round-trip")
+                    .as("eventType coordinates must survive a full serialize/deserialize round-trip")
                     .isEqualTo(original.getEventType());
             then(restored.getAggregateId())
-                    .as("aggregateId should survive a full serialize/deserialize round-trip")
+                    .as("aggregateId must survive a full serialize/deserialize round-trip")
                     .isEqualTo(original.getAggregateId());
             then(restored.getPayload())
-                    .as("payload should survive a full serialize/deserialize round-trip")
+                    .as("payload must survive a full serialize/deserialize round-trip")
                     .isEqualTo(original.getPayload());
             then(restored.getMetadata())
-                    .as("empty metadata should remain empty after a full round-trip")
+                    .as("empty metadata must remain empty after a full round-trip")
                     .isEqualTo(EventMetadata.empty());
         }
 
         @Test
-        @DisplayName("Preserves full metadata including custom properties")
+        @DisplayName("Should preserve full metadata including custom properties")
         void roundTrip_ShouldPreserveFullMetadata_WhenMetadataIsPopulated() {
             // given
+            stubResolverFor(SampleEvent.class, SamplePayload.class);
             EventMetadata metadata = EventMetadata.builder()
                     .correlationId("corr-rt")
                     .causationId("cause-rt")
@@ -1222,7 +1256,6 @@ class JacksonEventDeserializerTests {
                     .properties("channel", "web")
                     .properties("priority", 2)
                     .build();
-
             SampleEvent original = new SampleEvent(
                     "evt-full-meta",
                     Instant.parse("2026-03-02T08:15:30Z"),
@@ -1237,38 +1270,42 @@ class JacksonEventDeserializerTests {
 
             // then
             then(restored.getEventId())
-                    .as("eventId should survive round-trip with populated metadata")
+                    .as("eventId must survive round-trip with populated metadata")
                     .isEqualTo(original.getEventId());
             then(restored.getMetadata().getCorrelationId())
-                    .as("correlationId should survive round-trip")
+                    .as("correlationId must survive round-trip")
                     .isEqualTo("corr-rt");
             then(restored.getMetadata().getCausationId())
-                    .as("causationId should survive round-trip")
+                    .as("causationId must survive round-trip")
                     .isEqualTo("cause-rt");
             then(restored.getMetadata().getTenant())
-                    .as("tenant should survive round-trip")
+                    .as("tenant must survive round-trip")
                     .isEqualTo("tenant-rt");
             then(restored.getMetadata().getTraceId())
-                    .as("traceId should survive round-trip")
+                    .as("traceId must survive round-trip")
                     .isEqualTo("trace-rt");
             then(restored.getMetadata().getSpanId())
-                    .as("spanId should survive round-trip")
+                    .as("spanId must survive round-trip")
                     .isEqualTo("span-rt");
             then(restored.getMetadata().getUserId())
-                    .as("userId should survive round-trip")
+                    .as("userId must survive round-trip")
                     .isEqualTo("user-rt");
             then(restored.getMetadata().getProperty("channel"))
-                    .as("custom metadata property 'channel' should survive round-trip")
+                    .as("Custom metadata property 'channel' must survive round-trip")
                     .isEqualTo("web");
             then(restored.getMetadata().getProperty("priority"))
-                    .as("custom metadata property 'priority' should survive round-trip")
+                    .as("Custom metadata property 'priority' must survive round-trip")
                     .isEqualTo(2);
         }
 
         @Test
-        @DisplayName("Preserves composite aggregate id through serialize and deserialize")
+        @DisplayName("Should preserve composite aggregate id through serialize and deserialize")
         void roundTrip_ShouldPreserveCompositeAggregateId_WhenIdentifierValueIsComposite() {
             // given
+            EventType eventType = EventType.of("SampleCreated", "sample", "1");
+            DomainEventDescriptor descriptor = mockDescriptor(eventType, CompositeSampleEvent.class,
+                    SamplePayload.class, CompositeSampleIdentifier.class);
+            doReturn(descriptor).when(resolver).resolve(eventType);
             CompositeIdValue compositeValue = new CompositeIdValue("part-a", "part-b");
             CompositeSampleIdentifier aggregateId = new CompositeSampleIdentifier(compositeValue);
             CompositeSampleEvent original = new CompositeSampleEvent(
@@ -1276,7 +1313,7 @@ class JacksonEventDeserializerTests {
                     Instant.parse("2026-04-10T09:00:00Z"),
                     aggregateId,
                     new SamplePayload("composite-item", 1),
-                    EventType.of("CompositeCreated", "sample", "1"),
+                    EventType.of("SampleCreated", "sample", "1"),
                     EventMetadata.empty());
 
             // when
@@ -1285,23 +1322,35 @@ class JacksonEventDeserializerTests {
 
             // then
             then(restored.getAggregateId())
-                    .as("composite aggregate id instance should be restored after round-trip")
+                    .as("Composite aggregate id instance must be restored after round-trip")
                     .isEqualTo(aggregateId);
             then(restored.getAggregateId().value().partA())
-                    .as("composite value partA should survive round-trip")
+                    .as("Composite value partA must survive round-trip")
                     .isEqualTo("part-a");
             then(restored.getAggregateId().value().partB())
-                    .as("composite value partB should survive round-trip")
+                    .as("Composite value partB must survive round-trip")
                     .isEqualTo("part-b");
             then(restored.getEventId())
-                    .as("eventId should survive composite-id round-trip")
+                    .as("eventId must survive composite-id round-trip")
                     .isEqualTo("evt-composite");
         }
     }
 
     // -------------------------------------------------------------------------
-    // Helper methods and test doubles (after all Nested classes)
+    // Helpers and test doubles
     // -------------------------------------------------------------------------
+
+    private DomainEventDescriptor mockDescriptor(EventType eventType,
+                                                 Class<? extends DomainEvent<?, ?>> eventClass,
+                                                 Class<?> payloadType,
+                                                 Class<? extends Identifier<?>> identifierType) {
+        DomainEventDescriptor descriptor = mock(DomainEventDescriptor.class);
+        doReturn(eventType).when(descriptor).eventType();
+        doReturn(eventClass).when(descriptor).domainEvent();
+        doReturn(payloadType).when(descriptor).payloadType();
+        doReturn(identifierType).when(descriptor).identifierType();
+        return descriptor;
+    }
 
     private EventEnvelope validEnvelope() {
         EventEnvelope envelope = new EventEnvelope();
@@ -1343,17 +1392,10 @@ class JacksonEventDeserializerTests {
         return envelope;
     }
 
-    /**
-     * Builds the wire-form composite value node used to encode a
-     * {@link CompositeIdValue} inside an {@link EventEnvelope.AggregateIdNode}.
-     *
-     * @return the composite value node as a nested map
-     */
     private Map<String, Object> compositeValueNode() {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("partA", scalarValueNode(String.class.getName(), "part-a"));
         fields.put("partB", scalarValueNode(String.class.getName(), "part-b"));
-
         Map<String, Object> compositeValue = new LinkedHashMap<>();
         compositeValue.put("kind", "composite");
         compositeValue.put("type", CompositeIdValue.class.getName());
@@ -1361,13 +1403,6 @@ class JacksonEventDeserializerTests {
         return compositeValue;
     }
 
-    /**
-     * Builds the wire-form scalar value node.
-     *
-     * @param type  the scalar type name
-     * @param value the scalar value
-     * @return the scalar value node as a map
-     */
     private Map<String, Object> scalarValueNode(String type, String value) {
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("kind", "scalar");
@@ -1381,21 +1416,12 @@ class JacksonEventDeserializerTests {
         return objectMapper.writeValueAsBytes(envelope);
     }
 
-    /**
-     * Simple string-based identifier for tests.
-     */
     public record SampleIdentifier(String value) implements Identifier<String> {
     }
 
-    /**
-     * Simple payload for tests.
-     */
     public record SamplePayload(String name, int quantity) {
     }
 
-    /**
-     * Concrete event with reconstitution constructor for deserialization tests.
-     */
     public static final class SampleEvent extends AbstractDomainEvent<SampleIdentifier, SamplePayload> {
 
         public SampleEvent(String eventId,
@@ -1408,21 +1434,12 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Composite identifier value (record) for composite aggregate-id tests.
-     */
     public record CompositeIdValue(String partA, String partB) implements Serializable {
     }
 
-    /**
-     * Identifier wrapping a composite value.
-     */
     public record CompositeSampleIdentifier(CompositeIdValue value) implements Identifier<CompositeIdValue> {
     }
 
-    /**
-     * Event using composite aggregate identifier.
-     */
     public static final class CompositeSampleEvent
             extends AbstractDomainEvent<CompositeSampleIdentifier, SamplePayload> {
 
@@ -1436,66 +1453,8 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Intermediate type with a single type argument (the identifier) so that
-     * {@code getGenericSuperclass()} yields a ParameterizedType with fewer
-     * than two arguments. Identifier resolution still succeeds (args[0]), but
-     * payload resolution fails the {@code args.length < 2} guard.
-     *
-     * @param <I> aggregate identifier type
-     */
-    public abstract static class IdentifierOnlyBase<I extends Identifier<?>>
-            extends AbstractDomainEvent<I, SamplePayload> {
-
-        protected IdentifierOnlyBase(String eventId,
-                                     Instant occurredAt,
-                                     I aggregateId,
-                                     SamplePayload payload,
-                                     EventType eventType,
-                                     EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
-    }
-
-    /**
-     * Concrete event extending {@link IdentifierOnlyBase} to trigger
-     * insufficient type-argument count during payload resolution.
-     */
-    public static final class SingleArgEvent extends IdentifierOnlyBase<SampleIdentifier> {
-
-        public SingleArgEvent(String eventId,
-                              Instant occurredAt,
-                              SampleIdentifier aggregateId,
-                              SamplePayload payload,
-                              EventType eventType,
-                              EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
-    }
-
-    /**
-     * Event extending {@link AbstractDomainEvent} as a raw type so that
-     * {@code getGenericSuperclass()} is not a {@link java.lang.reflect.ParameterizedType},
-     * exercising the failure path of generic-type resolution.
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static final class RawEvent extends AbstractDomainEvent {
-
-        public RawEvent(String eventId,
-                        Instant occurredAt,
-                        Identifier aggregateId,
-                        Object payload,
-                        EventType eventType,
-                        EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
-    }
-
-    /**
-     * Non-generic intermediate so the hierarchy walk must skip a non-parameterized
-     * superclass before finding {@code AbstractDomainEvent<I, P>}.
-     */
-    public abstract static class NonGenericIntermediate extends AbstractDomainEvent<SampleIdentifier, SamplePayload> {
+    public abstract static class NonGenericIntermediate
+            extends AbstractDomainEvent<SampleIdentifier, SamplePayload> {
 
         protected NonGenericIntermediate(String eventId,
                                          Instant occurredAt,
@@ -1507,10 +1466,6 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Concrete event under {@link NonGenericIntermediate} to exercise multiple
-     * iterations of the generic-type resolution loop.
-     */
     public static final class MultiLevelEvent extends NonGenericIntermediate {
 
         public MultiLevelEvent(String eventId,
@@ -1523,11 +1478,8 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Event whose payload type is {@code Map<String, String>} so that
-     * {@code typeToClass} receives a {@link java.lang.reflect.ParameterizedType}.
-     */
-    public static final class MapPayloadEvent extends AbstractDomainEvent<SampleIdentifier, Map<String, String>> {
+    public static final class MapPayloadEvent
+            extends AbstractDomainEvent<SampleIdentifier, Map<String, String>> {
 
         public MapPayloadEvent(String eventId,
                                Instant occurredAt,
@@ -1539,28 +1491,6 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Open generic event so that the payload type argument remains a
-     * {@link java.lang.reflect.TypeVariable}, exercising the unsupported
-     * branch of {@code typeToClass}.
-     *
-     * @param <P> unresolved payload type
-     */
-    public static final class OpenPayloadEvent<P> extends AbstractDomainEvent<SampleIdentifier, P> {
-
-        public OpenPayloadEvent(String eventId,
-                                Instant occurredAt,
-                                SampleIdentifier aggregateId,
-                                P payload,
-                                EventType eventType,
-                                EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
-    }
-
-    /**
-     * DomainEvent that does not extend AbstractDomainEvent (negative type test).
-     */
     private static final class NonAbstractEvent implements DomainEvent<SampleIdentifier, SamplePayload> {
 
         @Override
@@ -1589,39 +1519,9 @@ class JacksonEventDeserializerTests {
         }
     }
 
-    /**
-     * Intermediate with swapped type-parameter order so that
-     * {@code args[0]} of the resolved parameterized type is the payload
-     * type (not an {@link Identifier}), exercising the identifier validation guard.
-     *
-     * @param <P> payload type (appears as args[0])
-     * @param <I> identifier type (appears as args[1])
-     */
-    public abstract static class SwappedTypeArgsBase<P, I extends Identifier<?>> extends AbstractDomainEvent<I, P> {
-
-        protected SwappedTypeArgsBase(String eventId,
-                                      Instant occurredAt,
-                                      I aggregateId,
-                                      P payload,
-                                      EventType eventType,
-                                      EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
-    }
-
-    /**
-     * Concrete event under {@link SwappedTypeArgsBase} so identifier resolution
-     * sees {@link SamplePayload} as args[0].
-     */
-    public static final class SwappedTypeArgsEvent extends SwappedTypeArgsBase<SamplePayload, SampleIdentifier> {
-
-        public SwappedTypeArgsEvent(String eventId,
-                                    Instant occurredAt,
-                                    SampleIdentifier aggregateId,
-                                    SamplePayload payload,
-                                    EventType eventType,
-                                    EventMetadata metadata) {
-            super(eventId, occurredAt, aggregateId, payload, eventType, metadata);
-        }
+    private void stubResolverFor(Class<? extends DomainEvent<?, ?>> eventClass, Class<?> payloadType) {
+        EventType eventType = EventType.of("SampleCreated", "sample", "1");
+        DomainEventDescriptor descriptor = mockDescriptor(eventType, eventClass, payloadType, SampleIdentifier.class);
+        doReturn(descriptor).when(resolver).resolve(eventType);
     }
 }
